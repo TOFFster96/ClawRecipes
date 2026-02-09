@@ -47,6 +47,41 @@ The intent:
 - Most agents should **not** have `exec`.
 - Only agents that truly need it (dev/devops) should get runtime/exec capabilities.
 
+## How to add/update tool access (allow list)
+There are two common approaches.
+
+### Option A (recommended): update the recipe, then re-apply config
+1) Edit the recipe markdown (either a workspace recipe or your own copy of a bundled recipe) and change `tools.allow` / `tools.deny`.
+
+2) Re-run scaffold with `--apply-config`:
+
+Team:
+```bash
+openclaw recipes scaffold-team <recipeId> --team-id <teamId> --overwrite --apply-config
+openclaw gateway restart
+```
+
+Individual agent:
+```bash
+openclaw recipes scaffold <recipeId> --agent-id <agentId> --overwrite --apply-config
+openclaw gateway restart
+```
+
+### Option B: edit OpenClaw config directly
+1) Edit:
+- `~/.openclaw/openclaw.json`
+
+2) Find the matching agent under `agents.list[]` and edit:
+- `tools.allow`
+- `tools.deny`
+
+3) Restart:
+```bash
+openclaw gateway restart
+```
+
+> Tip: if you later re-run scaffold with `--apply-config`, the recipe’s tool policy may overwrite your manual edits. If you want a change to stick, encode it in the recipe.
+
 ## Installing skills (workspace-local)
 Clawcipes favors **workspace-local** installs so each OpenClaw workspace is self-contained.
 
