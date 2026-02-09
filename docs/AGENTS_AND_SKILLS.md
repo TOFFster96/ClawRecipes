@@ -89,6 +89,55 @@ The shared workspace is the source of truth for:
 - assignments (`work/assignments`)
 - deliverables (`outbox/`)
 
+## Updating agents after you scaffold them
+Once an agent exists, there are **two layers** you can update:
+
+### 1) The agent’s files (workspace)
+Agents are just folders under:
+- `~/.openclaw/workspace/agents/<agentId>/`
+
+Common files:
+- `SOUL.md` — the persona / operating style
+- `AGENTS.md` — operating instructions / workflow
+
+To change behavior, edit these files and then just use the agent again.
+
+If the agent was created from a recipe, re-running scaffold with `--overwrite` will overwrite recipe-managed files:
+
+```bash
+openclaw recipes scaffold <recipeId> --agent-id <agentId> --overwrite
+```
+
+For teams, you typically re-run `scaffold-team`:
+
+```bash
+openclaw recipes scaffold-team <recipeId> --team-id <teamId> --overwrite
+```
+
+### 2) The agent’s OpenClaw config (tool permissions, identity, model)
+When you scaffold with `--apply-config`, Clawcipes writes the agent entry into OpenClaw config:
+- `~/.openclaw/openclaw.json` → `agents.list[]`
+
+Re-run scaffold/scaffold-team with `--apply-config` any time you want the recipe’s tool policy (allow/deny) to be re-applied.
+
+```bash
+openclaw recipes scaffold-team <recipeId> --team-id <teamId> --apply-config
+openclaw gateway restart
+```
+
+## Where to find agent config in the OpenClaw UI
+OpenClaw exposes agent configuration in its UI (labels/paths depend on your build), typically under something like:
+- **Settings → Agents**
+
+From there you can:
+- select an agent
+- view/edit its identity
+- review tool permissions
+- confirm which workspace it uses
+
+If you prefer files, the source-of-truth config file is:
+- `~/.openclaw/openclaw.json`
+
 ## How to create your own agents/teams
 You have three main options:
 

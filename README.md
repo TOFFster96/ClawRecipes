@@ -65,6 +65,7 @@ Reference:
 - Recipe format: `docs/RECIPE_FORMAT.md`
 - Bundled recipes: `docs/BUNDLED_RECIPES.md`
 - Team workflow: `docs/TEAM_WORKFLOW.md`
+- Clawcipes Kitchen (UI): `docs/CLAWCIPES_KITCHEN.md`
 
 (Also see: GitHub repo https://github.com/rjdjohnston/clawcipes)
 ## Notes / principles
