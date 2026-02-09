@@ -18,7 +18,7 @@ openclaw gateway restart
 openclaw plugins list
 ```
 
-### Option B: local dev path (already cloned)
+### Option B: already cloned
 ```bash
 openclaw plugins install -l ~/Sites/clawcipes
 openclaw gateway restart
@@ -37,9 +37,11 @@ openclaw recipes list
 ```
 
 ## Updating the plugin
-If you pull changes (or edit code locally), restart the gateway so OpenClaw reloads plugin code:
+If you pull a newer version from GitHub, restart the gateway so OpenClaw reloads the plugin:
 
 ```bash
+cd ~/Sites/clawcipes
+git pull
 openclaw gateway restart
 ```
 

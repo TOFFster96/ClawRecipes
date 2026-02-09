@@ -6,16 +6,8 @@ If you like durable workflows: Clawcipes is built around a **file-first team wor
 
 ## Quickstart
 ### 1) Install
-#### Option A: clone from GitHub
 ```bash
 git clone https://github.com/rjdjohnston/clawcipes.git ~/Sites/clawcipes
-openclaw plugins install -l ~/Sites/clawcipes
-openclaw gateway restart
-openclaw plugins list
-```
-
-#### Option B: local dev path (already cloned)
-```bash
 openclaw plugins install -l ~/Sites/clawcipes
 openclaw gateway restart
 openclaw plugins list
@@ -68,15 +60,24 @@ Config schema is defined in `openclaw.plugin.json`.
 - Recipe format: `docs/RECIPE_FORMAT.md`
 - Team workflow: `docs/TEAM_WORKFLOW.md`
 
+(Also see: GitHub repo https://github.com/rjdjohnston/clawcipes)
 ## Notes / principles
 - Workspace-local skills live in `~/.openclaw/workspace/skills` by default.
 - Team IDs end with `-team`; agent IDs are namespaced: `<teamId>-<role>`.
 - Recipe template rendering is intentionally simple: `{{var}}` replacement only.
 
-## Development
-```bash
-npm install
-# OpenClaw loads the plugin from index.ts directly.
-# Restart the gateway after changes:
-openclaw gateway restart
-```
+## Links
+- GitHub: https://github.com/rjdjohnston/clawcipes
+- Docs:
+  - Installation: `docs/INSTALLATION.md`
+  - Commands: `docs/COMMANDS.md`
+  - Recipe format: `docs/RECIPE_FORMAT.md`
+  - Team workflow: `docs/TEAM_WORKFLOW.md`
+
+## What you should be developing (not this plugin)
+Clawcipes is meant to be *installed* and then used to build **agents + teams**.
+
+Most users should focus on:
+- authoring recipes in their OpenClaw workspace (`<workspace>/recipes/*.md`)
+- scaffolding teams (`openclaw recipes scaffold-team ...`)
+- running the file-first workflow (dispatch → backlog → in-progress → done)
