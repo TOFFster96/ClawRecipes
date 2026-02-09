@@ -72,6 +72,52 @@ Special features:
   - dev: includes runtime
   - devops: includes runtime + automation
 
+## 4) `research-team` (team)
+**Kind:** team
+
+**Use when:** you need repeatable, citations-first research output.
+
+Scaffold:
+```bash
+openclaw recipes scaffold-team research-team --team-id research-team-team --apply-config
+```
+
+What it creates:
+- shared team workspace with conventional research folders:
+  - `work/sources/`, `work/notes/`, `work/briefs/`
+- agents:
+  - lead (dispatch + quality bar)
+  - researcher (web sourcing + notes)
+  - fact-checker (verification)
+  - summarizer (brief writing)
+
+Default tool policy:
+- allows web access + file operations
+- denies `exec` (safe-by-default)
+
+## 5) `writing-team` (team)
+**Kind:** team
+
+**Use when:** you want a writing pipeline from brief → outline → draft → edit.
+
+Scaffold:
+```bash
+openclaw recipes scaffold-team writing-team --team-id writing-team-team --apply-config
+```
+
+What it creates:
+- shared team workspace with writing pipeline folders:
+  - `work/briefs/`, `work/outlines/`, `work/drafts/`, `work/edited/`
+- agents:
+  - lead
+  - outliner
+  - writer
+  - editor
+
+Default tool policy:
+- allows web access + file operations
+- denies `exec` (safe-by-default)
+
 ## Copying and modifying bundled recipes
 A good workflow is:
 1) Inspect:
