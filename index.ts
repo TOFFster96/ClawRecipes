@@ -1775,6 +1775,9 @@ const recipesPlugin = {
             const doneDir = path.join(workDir, "done");
             const assignmentsDir = path.join(workDir, "assignments");
 
+            // Seed standard team files (createOnly unless --overwrite)
+            const overwrite = !!options.overwrite;
+
             const sharedContextDir = path.join(teamDir, "shared-context");
             const sharedContextOutputsDir = path.join(sharedContextDir, "agent-outputs");
             const sharedContextFeedbackDir = path.join(sharedContextDir, "feedback");
@@ -1804,8 +1807,6 @@ const recipesPlugin = {
             const prioritiesMd = `# Priorities — ${teamId}\n\n- (empty)\n\n## Notes\n- Lead curates this file.\n- Non-lead roles should append updates to shared-context/agent-outputs/ instead.\n`;
             await writeFileSafely(sharedPrioritiesPath, prioritiesMd, overwrite ? "overwrite" : "createOnly");
 
-            // Seed standard team files (createOnly unless --overwrite)
-            const overwrite = !!options.overwrite;
             const planPath = path.join(notesDir, "plan.md");
             const statusPath = path.join(notesDir, "status.md");
             const ticketsPath = path.join(teamDir, "TICKETS.md");
