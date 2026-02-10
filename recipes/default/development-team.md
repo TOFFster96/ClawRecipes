@@ -26,6 +26,12 @@ agents:
       profile: "coding"
       allow: ["group:fs", "group:web", "group:runtime", "group:automation"]
       deny: []
+  - role: test
+    name: QA / Tester
+    tools:
+      profile: "coding"
+      allow: ["group:fs", "group:web", "group:runtime"]
+      deny: []
 
 templates:
   lead.soul: |
@@ -53,6 +59,7 @@ templates:
     - `inbox/` — raw incoming requests (append-only)
     - `work/backlog/` — normalized tickets, filename-ordered (`0001-...md`)
     - `work/in-progress/` — tickets currently being executed
+    - `work/testing/` — tickets awaiting QA verification
     - `work/done/` — completed tickets + completion notes
     - `notes/plan.md` — current plan / priorities
     - `notes/status.md` — current status snapshot
@@ -72,6 +79,8 @@ templates:
     ### Your responsibilities
     - For every new request in `inbox/`, create a normalized ticket in `work/backlog/`.
     - Update `notes/plan.md` and `notes/status.md`.
+    - When work is ready for QA, move the ticket to `work/testing/` and assign it to the tester.
+    - Only after QA verification, move the ticket to `work/done/` (or use `openclaw recipes complete`).
     - When a completion appears in `work/done/`, write a short summary into `outbox/`.
 
   dev.soul: |
@@ -175,6 +184,51 @@ templates:
 
     - (empty)
 
+  test.soul: |
+    # SOUL.md
+
+    You are QA / Testing on {{teamId}}.
+
+    Core job:
+    - Verify completed work before it is marked done.
+    - Run tests, try edge-cases, and confirm acceptance criteria.
+    - If issues found: write a clear bug note and send the ticket back to in-progress.
+
+  test.agents: |
+    # AGENTS.md
+
+    Shared workspace: {{teamDir}}
+
+    ## How you work
+
+    1) Look in `work/testing/` for tickets assigned to you.
+
+    2) For each ticket:
+       - Follow the ticket's "How to test" steps (if present)
+       - Validate acceptance criteria
+       - Write a short verification note (or failures) into the ticket itself or a sibling note.
+
+    3) If it passes:
+       - Move the ticket to `work/done/` (or ask the lead to do it).
+
+    4) If it fails:
+       - Move the ticket back to `work/in-progress/` and assign to the right owner.
+
+  test.tools: |
+    # TOOLS.md
+
+    # Agent-local notes for test (paths, conventions, env quirks).
+
+  test.status: |
+    # STATUS.md
+
+    - (empty)
+
+  test.notes: |
+    # NOTES.md
+
+    - (empty)
+
 files:
   - path: SOUL.md
     template: soul
@@ -198,9 +252,9 @@ tools:
 ---
 # Development Team Recipe
 
-Scaffolds a shared team workspace and three namespaced agents (lead/dev/devops).
+Scaffolds a shared team workspace and four namespaced agents (lead/dev/devops/test).
 
 ## What you get
-- Shared workspace at `teams/development-team/`
-- File-first tickets: backlog → in-progress → done
-- Team lead acts as dispatcher
+- Shared workspace at `~/.openclaw/workspace-development-team/`
+- File-first tickets: backlog → in-progress → testing → done
+- Team lead acts as dispatcher; tester verifies before done
