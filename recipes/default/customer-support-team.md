@@ -12,7 +12,7 @@ agents:
     name: Support Lead
     tools:
       profile: "coding"
-      allow: ["group:fs", "group:web"]
+      allow: ["group:fs", "group:web", "group:runtime"]
       deny: ["exec"]
   - role: triage
     name: Support Triage

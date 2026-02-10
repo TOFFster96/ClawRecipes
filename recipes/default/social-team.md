@@ -10,6 +10,10 @@ team:
 agents:
   - role: lead
     name: Social Team Lead
+    tools:
+      profile: "coding"
+      allow: ["group:fs", "group:web", "group:runtime"]
+      deny: ["exec"]
   - role: research
     name: Social Trend Researcher
   - role: writer

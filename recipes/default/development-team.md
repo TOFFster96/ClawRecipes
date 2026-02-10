@@ -18,7 +18,7 @@ agents:
     name: Software Engineer
     tools:
       profile: "coding"
-      allow: ["group:fs", "group:web", "group:runtime"]
+      allow: ["group:fs", "group:web", "group:runtime", "group:automation"]
       deny: []
   - role: devops
     name: DevOps / SRE

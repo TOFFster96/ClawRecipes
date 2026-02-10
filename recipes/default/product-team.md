@@ -12,7 +12,7 @@ agents:
     name: Product Lead
     tools:
       profile: "coding"
-      allow: ["group:fs", "group:web"]
+      allow: ["group:fs", "group:web", "group:runtime"]
       deny: ["exec"]
   - role: pm
     name: Product Manager

@@ -12,7 +12,7 @@ agents:
     name: Writing Lead
     tools:
       profile: "coding"
-      allow: ["group:fs", "group:web"]
+      allow: ["group:fs", "group:web", "group:runtime"]
       deny: ["exec"]
   - role: outliner
     name: Outliner
