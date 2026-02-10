@@ -2,7 +2,7 @@
 id: development-team
 name: Development Team
 version: 0.2.0
-description: A small engineering team with a shared workspace (lead, dev, devops) using file-first tickets.
+description: A small engineering team with a shared workspace (lead, dev, devops, test) using file-first tickets.
 kind: team
 requiredSkills: []
 team:
