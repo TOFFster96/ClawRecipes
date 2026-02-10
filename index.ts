@@ -933,11 +933,13 @@ const recipesPlugin = {
             const ticketPath = path.join(backlogDir, `${ticketNumStr}-${baseSlug}.md`);
             const assignmentPath = path.join(assignmentsDir, `${ticketNumStr}-assigned-${owner}.md`);
 
-            const inboxMd = `# Inbox — ${teamId}\n\nReceived: ${new Date().toISOString()}\n\n## Request\n${requestText}\n\n## Proposed work\n- Ticket: ${ticketNumStr}-${baseSlug}\n- Owner: ${owner}\n`;
+            const receivedIso = new Date().toISOString();
 
-            const ticketMd = `# ${ticketNumStr}-${baseSlug}\n\nOwner: ${owner}\nStatus: queued\n\n## Context\n${requestText}\n\n## Requirements\n- (fill in)\n\n## Acceptance criteria\n- (fill in)\n`;
+            const inboxMd = `# Inbox — ${teamId}\n\nReceived: ${receivedIso}\n\n## Request\n${requestText}\n\n## Proposed work\n- Ticket: ${ticketNumStr}-${baseSlug}\n- Owner: ${owner}\n\n## Links\n- Ticket: ${path.relative(teamDir, ticketPath)}\n- Assignment: ${path.relative(teamDir, assignmentPath)}\n`;
 
-            const assignmentMd = `# Assignment — ${ticketNumStr}-${baseSlug}\n\nAssigned: ${owner}\n\n## Goal\n${title}\n\n## Ticket\n${path.relative(teamDir, ticketPath)}\n\n## Notes\n- Created by: openclaw recipes dispatch\n`;
+            const ticketMd = `# ${ticketNumStr}-${baseSlug}\n\nCreated: ${receivedIso}\nOwner: ${owner}\nStatus: queued\nInbox: ${path.relative(teamDir, inboxPath)}\nAssignment: ${path.relative(teamDir, assignmentPath)}\n\n## Context\n${requestText}\n\n## Requirements\n- (fill in)\n\n## Acceptance criteria\n- (fill in)\n\n## Tasks\n- [ ] (fill in)\n`;
+
+            const assignmentMd = `# Assignment — ${ticketNumStr}-${baseSlug}\n\nCreated: ${receivedIso}\nAssigned: ${owner}\n\n## Goal\n${title}\n\n## Ticket\n${path.relative(teamDir, ticketPath)}\n\n## Notes\n- Created by: openclaw recipes dispatch\n`;
 
             const plan = {
               teamId,
