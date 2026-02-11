@@ -370,7 +370,24 @@ async function reconcileRecipeCronJobs(opts: {
   const statePath = path.join(opts.scope.stateDir, "notes", "cron-jobs.json");
   const state = await loadCronMappingState(statePath);
 
-  const list = spawnOpenClawJson(["cron", "list", "--json"]) as { jobs: OpenClawCronJob[] };
+  let list: { jobs: OpenClawCronJob[] } | null = null;
+  try {
+    list = spawnOpenClawJson(["cron", "list", "--all", "--json"]) as { jobs: OpenClawCronJob[] };
+  } catch (err: any) {
+    // Cron reconciliation should not prevent scaffolding from completing.
+    // If the gateway is restarting or cron RPC is temporarily unavailable, skip reconciliation.
+    console.error(`Warning: failed to list cron jobs; skipping cron reconciliation for ${opts.scope.kind} ${
+      (opts.scope as any).teamId ?? (opts.scope as any).agentId
+    } (${opts.scope.recipeId}).`);
+    if (err?.stderr) console.error(String(err.stderr).trim());
+    return {
+      ok: false,
+      changed: false,
+      note: "cron-list-failed" as const,
+      desiredCount: desired.length,
+      error: { message: String(err?.message ?? err) },
+    };
+  }
   const byId = new Map((list?.jobs ?? []).map((j) => [j.id, j] as const));
 
   const now = Date.now();
