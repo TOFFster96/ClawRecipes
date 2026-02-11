@@ -56,11 +56,16 @@ templates:
     Team: {{teamId}}
     Team directory: {{teamDir}}
 
-    Workflow:
-    - Intake: check `inbox/`
-    - Assign: write tasks into `work/assignments/`
-    - Review: consolidate drafts from `work/`
-    - Deliver: finalize into `outbox/`
+    Workflow (mapped to canonical lanes):
+    - backlog → in-progress → testing → done
+    - Intake: check `inbox/` and write tickets into work/backlog/
+    - Drafting: use work/in-progress/ for active drafting
+    - Approval/review: use work/testing/ for review + final checks
+    - Done: move to work/done/ and publish/schedule into outbox/
+
+    QA verification:
+    - Use notes/QA_CHECKLIST.md
+    - Preferred record: work/testing/<ticket>.testing-verified.md
 
   research.soul: |
     # SOUL.md
@@ -106,6 +111,71 @@ templates:
     Output conventions:
     - Edited drafts go in `work/edited/`.
     - Provide a short changelog at the top.
+
+    ## QA verification (approval)
+    Before moving a deliverable to done/scheduled:
+    - Record verification using notes/QA_CHECKLIST.md.
+    - Preferred: create work/testing/<ticket>.testing-verified.md.
+
+  lead.tools: |
+    # TOOLS.md
+
+    (empty)
+
+  lead.status: |
+    # STATUS.md
+
+    - (empty)
+
+  lead.notes: |
+    # NOTES.md
+
+    - (empty)
+
+  research.tools: |
+    # TOOLS.md
+
+    (empty)
+
+  research.status: |
+    # STATUS.md
+
+    - (empty)
+
+  research.notes: |
+    # NOTES.md
+
+    - (empty)
+
+  writer.tools: |
+    # TOOLS.md
+
+    (empty)
+
+  writer.status: |
+    # STATUS.md
+
+    - (empty)
+
+  writer.notes: |
+    # NOTES.md
+
+    - (empty)
+
+  editor.tools: |
+    # TOOLS.md
+
+    (empty)
+
+  editor.status: |
+    # STATUS.md
+
+    - (empty)
+
+  editor.notes: |
+    # NOTES.md
+
+    - (empty)
 
 
 files:
