@@ -317,6 +317,32 @@ templates:
     4) If it fails:
        - Move the ticket back to `work/in-progress/` and assign to the right owner.
 
+    ## Cleanup after testing
+
+    If your test involved creating temporary resources (e.g., scaffolding test teams, creating test workspaces), **clean them up** after verification:
+
+    1) Remove test workspaces:
+       ```bash
+       rm -rf ~/.openclaw/workspace-<test-team-id>
+       ```
+
+    2) Remove test agents from config (agents whose id starts with the test team id):
+       - Edit `~/.openclaw/openclaw.json` and remove entries from `agents.list[]`
+       - Or wait for `openclaw recipes remove-team` (once available)
+
+    3) Remove any cron jobs created for the test team:
+       ```bash
+       openclaw cron list --all --json | grep "<test-team-id>"
+       openclaw cron remove <jobId>
+       ```
+
+    4) Restart the gateway if you modified config:
+       ```bash
+       openclaw gateway restart
+       ```
+
+    **Naming convention:** When scaffolding test teams, use a prefix like `qa-<ticketNum>-` (e.g., `qa-0017-social-team`) so cleanup is easier.
+
   test.tools: |
     # TOOLS.md
 
