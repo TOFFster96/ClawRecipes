@@ -265,63 +265,7 @@ type OpenClawCronJob = {
   description?: string;
 };
 
-type ToolTextResult = { content?: Array<{ type: string; text?: string }> };
-
-type ToolsInvokeRequest = {
-  tool: string;
-  action?: string;
-  args?: Record<string, unknown>;
-  sessionKey?: string;
-  dryRun?: boolean;
-};
-
-type ToolsInvokeResponse = {
-  ok: boolean;
-  result?: unknown;
-  error?: { message?: string } | string;
-};
-
-async function toolsInvoke<T = unknown>(api: any, req: ToolsInvokeRequest): Promise<T> {
-  const port = api.config.gateway?.port ?? 18789;
-  const token = api.config.gateway?.auth?.token;
-  if (!token) throw new Error("Missing gateway.auth.token in openclaw config (required for tools/invoke)");
-
-  // We sometimes see transient undici network errors in the CLI environment
-  // (ECONNRESET/ECONNREFUSED) even when the Gateway is healthy.
-  // A small retry makes recipe cron reconciliation much less flaky.
-  const url = `http://127.0.0.1:${port}/tools/invoke`;
-
-  let lastErr: unknown = null;
-  for (let attempt = 1; attempt <= 3; attempt++) {
-    try {
-      const res = await fetch(url, {
-        method: "POST",
-        headers: {
-          "content-type": "application/json",
-          authorization: `Bearer ${token}`,
-        },
-        body: JSON.stringify(req),
-      });
-
-      const json = (await res.json()) as ToolsInvokeResponse;
-      if (!res.ok || !json.ok) {
-        const msg =
-          (typeof json.error === "object" && json.error?.message) ||
-          (typeof json.error === "string" ? json.error : null) ||
-          `tools/invoke failed (${res.status})`;
-        throw new Error(msg);
-      }
-
-      return json.result as T;
-    } catch (e) {
-      lastErr = e;
-      if (attempt >= 3) break;
-      await new Promise((r) => setTimeout(r, 150 * attempt));
-    }
-  }
-
-  throw lastErr instanceof Error ? lastErr : new Error(String(lastErr ?? "toolsInvoke failed"));
-}
+import { toolsInvoke, type ToolTextResult, type ToolsInvokeRequest } from "./src/toolsInvoke";
 
 function parseToolTextJson(text: string, label: string) {
   const trimmed = String(text ?? "").trim();
