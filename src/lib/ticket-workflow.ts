@@ -16,11 +16,13 @@ async function ensureDir(p: string) {
   await fs.mkdir(p, { recursive: true });
 }
 
-export async function findTicketFile(teamDir: string, ticketArg: string) {
+export async function findTicketFile(teamDir: string, ticketArgRaw: string) {
   const stageDir = (stage: string) => path.join(teamDir, 'work', stage);
   const searchDirs = [stageDir('backlog'), stageDir('in-progress'), stageDir('testing'), stageDir('done')];
 
-  const ticketNum = ticketArg.match(/^\d{4}$/) ? ticketArg : (ticketArg.match(/^(\d{4})-/)?.[1] ?? null);
+  const ticketArg = String(ticketArgRaw ?? '').trim();
+  const padded = ticketArg.match(/^\d+$/) && ticketArg.length < 4 ? ticketArg.padStart(4, '0') : ticketArg;
+  const ticketNum = padded.match(/^\d{4}$/) ? padded : (padded.match(/^(\d{4})-/)?.[1] ?? null);
 
   for (const dir of searchDirs) {
     if (!(await fileExists(dir))) continue;
@@ -28,7 +30,7 @@ export async function findTicketFile(teamDir: string, ticketArg: string) {
     for (const f of files) {
       if (!f.endsWith('.md')) continue;
       if (ticketNum && f.startsWith(`${ticketNum}-`)) return path.join(dir, f);
-      if (!ticketNum && f.replace(/\.md$/, '') === ticketArg) return path.join(dir, f);
+      if (!ticketNum && f.replace(/\.md$/, '') === padded) return path.join(dir, f);
     }
   }
   return null;

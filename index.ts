@@ -1529,7 +1529,8 @@ const recipesPlugin = {
             throw new Error("--to must be one of: backlog, in-progress, testing, done");
           }
 
-          const ticketArg = String(options.ticket);
+          const ticketArgRaw = String(options.ticket);
+          const ticketArg = ticketArgRaw.match(/^\d+$/) && ticketArgRaw.length < 4 ? ticketArgRaw.padStart(4, "0") : ticketArgRaw;
           const ticketNum = ticketArg.match(/^\d{4}$/)
             ? ticketArg
             : ticketArg.match(/^(\d{4})-/)?.[1] ?? null;
