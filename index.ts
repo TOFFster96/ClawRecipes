@@ -393,6 +393,7 @@ async function promptYesNo(header: string) {
 }
 
 async function reconcileRecipeCronJobs(opts: {
+  api: OpenClawPluginApi;
   recipe: RecipeFrontmatter;
   scope: { kind: "team"; teamId: string; recipeId: string; stateDir: string } | { kind: "agent"; agentId: string; recipeId: string; stateDir: string };
   cronInstallation: CronInstallMode;
@@ -418,7 +419,7 @@ async function reconcileRecipeCronJobs(opts: {
   const statePath = path.join(opts.scope.stateDir, "notes", "cron-jobs.json");
   const state = await loadCronMappingState(statePath);
 
-  const list = await cronList(api);
+  const list = await cronList(opts.api);
   const byId = new Map((list?.jobs ?? []).map((j) => [j.id, j] as const));
 
   const now = Date.now();
@@ -474,7 +475,7 @@ async function reconcileRecipeCronJobs(opts: {
           : {}),
       };
 
-      const created = await cronAdd(api, job);
+      const created = await cronAdd(opts.api, job);
       const newId = (created as any)?.id ?? (created as any)?.job?.id;
       if (!newId) throw new Error("Failed to parse cron add output (missing id)");
 
@@ -503,7 +504,7 @@ async function reconcileRecipeCronJobs(opts: {
         };
       }
 
-      await cronUpdate(api, existing.id, patch);
+      await cronUpdate(opts.api, existing.id, patch);
       results.push({ action: "updated", key, installedCronId: existing.id });
     } else {
       results.push({ action: "unchanged", key, installedCronId: existing.id });
@@ -512,7 +513,7 @@ async function reconcileRecipeCronJobs(opts: {
     // Enabled precedence: if user did not opt in, force disabled. Otherwise preserve current enabled state.
     if (!userOptIn) {
       if (existing.enabled) {
-        await cronUpdate(api, existing.id, { enabled: false });
+        await cronUpdate(opts.api, existing.id, { enabled: false });
         results.push({ action: "disabled", key, installedCronId: existing.id });
       }
     }
@@ -2172,6 +2173,7 @@ const recipesPlugin = {
             }
 
             const cron = await reconcileRecipeCronJobs({
+              api,
               recipe,
               scope: { kind: "agent", agentId: String(options.agentId), recipeId: recipe.id, stateDir: resolvedWorkspaceRoot },
               cronInstallation: getCfg(api).cronInstallation,
@@ -2325,6 +2327,7 @@ const recipesPlugin = {
             }
 
             const cron = await reconcileRecipeCronJobs({
+              api,
               recipe,
               scope: { kind: "team", teamId, recipeId: recipe.id, stateDir: teamDir },
               cronInstallation: getCfg(api).cronInstallation,
