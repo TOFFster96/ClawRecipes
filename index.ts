@@ -261,43 +261,88 @@ type OpenClawCronJob = {
   schedule?: any;
   payload?: any;
   delivery?: any;
-  agentId?: string;
+  agentId?: string | null;
   description?: string;
 };
 
-function spawnOpenClawJson(args: string[]) {
-  const { spawnSync } = require("node:child_process") as typeof import("node:child_process");
-  const res = spawnSync("openclaw", args, { encoding: "utf8" });
-  if (res.status !== 0) {
-    const err = new Error(`openclaw ${args.join(" ")} failed (exit=${res.status})`);
-    (err as any).stdout = res.stdout;
-    (err as any).stderr = res.stderr;
-    throw err;
+type ToolTextResult = { content?: Array<{ type: string; text?: string }> };
+
+type ToolsInvokeRequest = {
+  tool: string;
+  action?: string;
+  args?: Record<string, unknown>;
+  sessionKey?: string;
+  dryRun?: boolean;
+};
+
+type ToolsInvokeResponse = {
+  ok: boolean;
+  result?: unknown;
+  error?: { message?: string } | string;
+};
+
+async function toolsInvoke<T = unknown>(api: any, req: ToolsInvokeRequest): Promise<T> {
+  const port = api.config.gateway?.port ?? 18789;
+  const token = api.config.gateway?.auth?.token;
+  if (!token) throw new Error("Missing gateway.auth.token in openclaw config (required for tools/invoke)");
+
+  const res = await fetch(`http://127.0.0.1:${port}/tools/invoke`, {
+    method: "POST",
+    headers: {
+      "content-type": "application/json",
+      authorization: `Bearer ${token}`,
+    },
+    body: JSON.stringify(req),
+  });
+
+  const json = (await res.json()) as ToolsInvokeResponse;
+  if (!res.ok || !json.ok) {
+    const msg =
+      (typeof json.error === "object" && json.error?.message) ||
+      (typeof json.error === "string" ? json.error : null) ||
+      `tools/invoke failed (${res.status})`;
+    throw new Error(msg);
   }
 
-  const raw = String(res.stdout ?? "");
+  return json.result as T;
+}
 
-  // OpenClaw may prepend pretty "Config warnings" blocks before JSON output.
-  // To be resilient, parse the first JSON object/array found in stdout.
-  const trimmed = raw.trim();
+function parseToolTextJson(text: string, label: string) {
+  const trimmed = String(text ?? "").trim();
   if (!trimmed) return null;
-
-  const firstObj = trimmed.indexOf("{");
-  const firstArr = trimmed.indexOf("[");
-  const start =
-    firstObj === -1 ? firstArr : firstArr === -1 ? firstObj : Math.min(firstObj, firstArr);
-
-  const jsonText = start >= 0 ? trimmed.slice(start) : trimmed;
-
   try {
-    return JSON.parse(jsonText) as any;
+    return JSON.parse(trimmed) as any;
   } catch (e) {
-    const err = new Error(`Failed parsing JSON from: openclaw ${args.join(" ")}`);
-    (err as any).stdout = raw;
-    (err as any).stderr = res.stderr;
+    const err = new Error(`Failed parsing JSON from tool text (${label})`);
+    (err as any).text = text;
     (err as any).cause = e;
     throw err;
   }
+}
+
+async function cronList(api: any) {
+  const result = await toolsInvoke<ToolTextResult>(api, {
+    tool: "cron",
+    args: { action: "list", includeDisabled: true },
+  });
+  const text = result?.content?.find((c) => c.type === "text")?.text;
+  const parsed = text ? (parseToolTextJson(text, "cron.list") as { jobs?: OpenClawCronJob[] }) : null;
+  return { jobs: parsed?.jobs ?? [] };
+}
+
+async function cronAdd(api: any, job: any) {
+  const result = await toolsInvoke<ToolTextResult>(api, { tool: "cron", args: { action: "add", job } });
+  const text = result?.content?.find((c) => c.type === "text")?.text;
+  return text ? parseToolTextJson(text, "cron.add") : null;
+}
+
+async function cronUpdate(api: any, jobId: string, patch: any) {
+  const result = await toolsInvoke<ToolTextResult>(api, {
+    tool: "cron",
+    args: { action: "update", jobId, patch },
+  });
+  const text = result?.content?.find((c) => c.type === "text")?.text;
+  return text ? parseToolTextJson(text, "cron.update") : null;
 }
 
 function normalizeCronJobs(frontmatter: RecipeFrontmatter): CronJobSpec[] {
@@ -373,7 +418,7 @@ async function reconcileRecipeCronJobs(opts: {
   const statePath = path.join(opts.scope.stateDir, "notes", "cron-jobs.json");
   const state = await loadCronMappingState(statePath);
 
-  const list = spawnOpenClawJson(["cron", "list", "--json"]) as { jobs: OpenClawCronJob[] };
+  const list = await cronList(api);
   const byId = new Map((list?.jobs ?? []).map((j) => [j.id, j] as const));
 
   const now = Date.now();
@@ -405,27 +450,32 @@ async function reconcileRecipeCronJobs(opts: {
 
     if (!existing) {
       // Create new job.
-      const args = [
-        "cron",
-        "add",
-        "--json",
-        "--name",
+      const sessionTarget = j.agentId ? "isolated" : "main";
+      const job = {
         name,
-        "--cron",
-        j.schedule,
-        "--message",
-        j.message,
-        "--announce",
-      ];
-      if (!wantEnabled) args.push("--disabled");
-      if (j.description) args.push("--description", j.description);
-      if (j.timezone) args.push("--tz", j.timezone);
-      if (j.channel) args.push("--channel", j.channel);
-      if (j.to) args.push("--to", j.to);
-      if (j.agentId) args.push("--agent", j.agentId);
+        agentId: j.agentId ?? null,
+        description: j.description ?? "",
+        enabled: wantEnabled,
+        wakeMode: "next-heartbeat",
+        sessionTarget,
+        schedule: { kind: "cron", expr: j.schedule, ...(j.timezone ? { tz: j.timezone } : {}) },
+        payload: j.agentId
+          ? { kind: "agentTurn", message: j.message }
+          : { kind: "systemEvent", text: j.message },
+        ...(j.channel || j.to
+          ? {
+              delivery: {
+                mode: "announce",
+                ...(j.channel ? { channel: j.channel } : {}),
+                ...(j.to ? { to: j.to } : {}),
+                bestEffort: true,
+              },
+            }
+          : {}),
+      };
 
-      const created = spawnOpenClawJson(args) as any;
-      const newId = created?.id ?? created?.job?.id;
+      const created = await cronAdd(api, job);
+      const newId = (created as any)?.id ?? (created as any)?.job?.id;
       if (!newId) throw new Error("Failed to parse cron add output (missing id)");
 
       state.entries[key] = { installedCronId: newId, specHash, updatedAtMs: now, orphaned: false };
@@ -435,25 +485,25 @@ async function reconcileRecipeCronJobs(opts: {
 
     // Update existing job if spec changed.
     if (prev?.specHash !== specHash) {
-      const editArgs = [
-        "cron",
-        "edit",
-        existing.id,
-        "--name",
+      const patch: any = {
         name,
-        "--cron",
-        j.schedule,
-        "--message",
-        j.message,
-        "--announce",
-      ];
-      if (j.description) editArgs.push("--description", j.description);
-      if (j.timezone) editArgs.push("--tz", j.timezone);
-      if (j.channel) editArgs.push("--channel", j.channel);
-      if (j.to) editArgs.push("--to", j.to);
-      if (j.agentId) editArgs.push("--agent", j.agentId);
+        agentId: j.agentId ?? null,
+        description: j.description ?? "",
+        sessionTarget: j.agentId ? "isolated" : "main",
+        wakeMode: "next-heartbeat",
+        schedule: { kind: "cron", expr: j.schedule, ...(j.timezone ? { tz: j.timezone } : {}) },
+        payload: j.agentId ? { kind: "agentTurn", message: j.message } : { kind: "systemEvent", text: j.message },
+      };
+      if (j.channel || j.to) {
+        patch.delivery = {
+          mode: "announce",
+          ...(j.channel ? { channel: j.channel } : {}),
+          ...(j.to ? { to: j.to } : {}),
+          bestEffort: true,
+        };
+      }
 
-      spawnOpenClawJson(editArgs);
+      await cronUpdate(api, existing.id, patch);
       results.push({ action: "updated", key, installedCronId: existing.id });
     } else {
       results.push({ action: "unchanged", key, installedCronId: existing.id });
@@ -462,7 +512,7 @@ async function reconcileRecipeCronJobs(opts: {
     // Enabled precedence: if user did not opt in, force disabled. Otherwise preserve current enabled state.
     if (!userOptIn) {
       if (existing.enabled) {
-        spawnOpenClawJson(["cron", "edit", existing.id, "--disable"]);
+        await cronUpdate(api, existing.id, { enabled: false });
         results.push({ action: "disabled", key, installedCronId: existing.id });
       }
     }
@@ -478,7 +528,7 @@ async function reconcileRecipeCronJobs(opts: {
 
     const job = byId.get(entry.installedCronId);
     if (job && job.enabled) {
-      spawnOpenClawJson(["cron", "edit", job.id, "--disable"]);
+      await cronUpdate(api, job.id, { enabled: false });
       results.push({ action: "disabled-removed", key, installedCronId: job.id });
     }
 
@@ -1156,20 +1206,16 @@ const recipesPlugin = {
               console.error(header);
             }
 
-            // Use clawhub CLI. Force install path based on scope.
-            const { spawnSync } = await import("node:child_process");
+            // Avoid spawning subprocesses from plugins (triggers OpenClaw dangerous-pattern warnings).
+            // For now, print the exact commands the user should run.
+            console.error("\nSkill install requires the ClawHub CLI. Run the following then re-run this command:\n");
             for (const slug of missing) {
-              const res = spawnSync(
-                "npx",
-                ["clawhub@latest", "--workdir", workdir, "--dir", dirName, "install", slug],
-                { stdio: "inherit" },
+              console.error(
+                `  npx clawhub@latest --workdir ${JSON.stringify(workdir)} --dir ${JSON.stringify(dirName)} install ${JSON.stringify(slug)}`,
               );
-              if (res.status !== 0) {
-                process.exitCode = res.status ?? 1;
-                console.error(`Failed installing ${slug} (exit=${process.exitCode}).`);
-                return;
-              }
             }
+            process.exitCode = 2;
+            return;
 
             console.log(
               JSON.stringify(
@@ -1520,6 +1566,89 @@ const recipesPlugin = {
             print("Testing", out.testing);
             print("Done", out.done);
           });
+
+        async function moveTicketCore(options: any) {
+          const workspaceRoot = api.config.agents?.defaults?.workspace;
+          if (!workspaceRoot) throw new Error("agents.defaults.workspace is not set in config");
+          const teamId = String(options.teamId);
+          const teamDir = path.resolve(workspaceRoot, "..", `workspace-${teamId}`);
+
+          await ensureTicketStageDirs(teamDir);
+
+          const dest = String(options.to);
+          if (!["backlog", "in-progress", "testing", "done"].includes(dest)) {
+            throw new Error("--to must be one of: backlog, in-progress, testing, done");
+          }
+
+          const ticketArg = String(options.ticket);
+          const ticketNum = ticketArg.match(/^\d{4}$/)
+            ? ticketArg
+            : ticketArg.match(/^(\d{4})-/)?.[1] ?? null;
+
+          const stageDir = (stage: string) => {
+            if (stage === "backlog") return path.join(teamDir, "work", "backlog");
+            if (stage === "in-progress") return path.join(teamDir, "work", "in-progress");
+            if (stage === "testing") return path.join(teamDir, "work", "testing");
+            if (stage === "done") return path.join(teamDir, "work", "done");
+            throw new Error(`Unknown stage: ${stage}`);
+          };
+
+          const searchDirs = [stageDir("backlog"), stageDir("in-progress"), stageDir("testing"), stageDir("done")];
+
+          const findTicketFile = async () => {
+            for (const dir of searchDirs) {
+              if (!(await fileExists(dir))) continue;
+              const files = await fs.readdir(dir);
+              for (const f of files) {
+                if (!f.endsWith(".md")) continue;
+                if (ticketNum && f.startsWith(`${ticketNum}-`)) return path.join(dir, f);
+                if (!ticketNum && f.replace(/\.md$/, "") === ticketArg) return path.join(dir, f);
+              }
+            }
+            return null;
+          };
+
+          const srcPath = await findTicketFile();
+          if (!srcPath) throw new Error(`Ticket not found: ${ticketArg}`);
+
+          const destDir = stageDir(dest);
+          await ensureDir(destDir);
+          const filename = path.basename(srcPath);
+          const destPath = path.join(destDir, filename);
+
+          const patchStatus = (md: string) => {
+            const nextStatus =
+              dest === "backlog"
+                ? "queued"
+                : dest === "in-progress"
+                  ? "in-progress"
+                  : dest === "testing"
+                    ? "testing"
+                    : "done";
+
+            let out = md;
+            if (out.match(/^Status:\s.*$/m)) out = out.replace(/^Status:\s.*$/m, `Status: ${nextStatus}`);
+            else out = out.replace(/^(# .+\n)/, `$1\nStatus: ${nextStatus}\n`);
+
+            if (dest === "done" && options.completed) {
+              const completed = new Date().toISOString();
+              if (out.match(/^Completed:\s.*$/m)) out = out.replace(/^Completed:\s.*$/m, `Completed: ${completed}`);
+              else out = out.replace(/^Status:.*$/m, (m) => `${m}\nCompleted: ${completed}`);
+            }
+
+            return out;
+          };
+
+          const md = await fs.readFile(srcPath, "utf8");
+          const patched = patchStatus(md);
+          await fs.writeFile(srcPath, patched, "utf8");
+
+          if (srcPath !== destPath) {
+            await fs.rename(srcPath, destPath);
+          }
+
+          return { ok: true, from: srcPath, to: destPath };
+        }
 
         cmd
           .command("move-ticket")
@@ -1981,10 +2110,17 @@ const recipesPlugin = {
             ];
             if (options.yes) args.push('--yes');
 
-            const { spawnSync } = await import('node:child_process');
-            const res = spawnSync('openclaw', args, { stdio: 'inherit' });
-            if (res.status !== 0) {
-              process.exitCode = res.status ?? 1;
+            try {
+              await moveTicketCore({
+                teamId: options.teamId,
+                ticket: options.ticket,
+                to: "done",
+                completed: true,
+                yes: options.yes,
+              });
+            } catch (e) {
+              process.exitCode = 1;
+              throw e;
             }
           });
 
