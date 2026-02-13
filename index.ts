@@ -188,6 +188,25 @@ async function ensureDir(p: string) {
   await fs.mkdir(p, { recursive: true });
 }
 
+function ticketStageDir(teamDir: string, stage: "backlog" | "in-progress" | "testing" | "done" | "assignments") {
+  return stage === "assignments"
+    ? path.join(teamDir, "work", "assignments")
+    : path.join(teamDir, "work", stage);
+}
+
+async function ensureTicketStageDirs(teamDir: string) {
+  // Idempotent. Used to harden ticket commands for older team workspaces.
+  // NOTE: creating these directories is safe even if empty.
+  await Promise.all([
+    ensureDir(path.join(teamDir, "work")),
+    ensureDir(ticketStageDir(teamDir, "backlog")),
+    ensureDir(ticketStageDir(teamDir, "in-progress")),
+    ensureDir(ticketStageDir(teamDir, "testing")),
+    ensureDir(ticketStageDir(teamDir, "done")),
+    ensureDir(ticketStageDir(teamDir, "assignments")),
+  ]);
+}
+
 type CronInstallMode = "off" | "prompt" | "on";
 
 type CronMappingStateV1 = {
@@ -1297,6 +1316,8 @@ const recipesPlugin = {
             const teamId = String(options.teamId);
             const teamDir = path.resolve(workspaceRoot, "..", `workspace-${teamId}`);
 
+            await ensureTicketStageDirs(teamDir);
+
             const dirs = {
               backlog: path.join(teamDir, "work", "backlog"),
               inProgress: path.join(teamDir, "work", "in-progress"),
@@ -1355,6 +1376,8 @@ const recipesPlugin = {
             if (!workspaceRoot) throw new Error("agents.defaults.workspace is not set in config");
             const teamId = String(options.teamId);
             const teamDir = path.resolve(workspaceRoot, "..", `workspace-${teamId}`);
+
+            await ensureTicketStageDirs(teamDir);
 
             const dest = String(options.to);
             if (!['backlog','in-progress','testing','done'].includes(dest)) {
@@ -1466,6 +1489,8 @@ const recipesPlugin = {
             const teamId = String(options.teamId);
             const teamDir = path.resolve(workspaceRoot, "..", `workspace-${teamId}`);
 
+            await ensureTicketStageDirs(teamDir);
+
             const owner = String(options.owner);
             if (!['dev','devops','lead','test'].includes(owner)) {
               throw new Error("--owner must be one of: dev, devops, lead, test");
@@ -1558,6 +1583,8 @@ const recipesPlugin = {
             if (!workspaceRoot) throw new Error("agents.defaults.workspace is not set in config");
             const teamId = String(options.teamId);
             const teamDir = path.resolve(workspaceRoot, "..", `workspace-${teamId}`);
+
+            await ensureTicketStageDirs(teamDir);
 
             const owner = String(options.owner ?? 'dev');
             if (!['dev','devops','lead','test'].includes(owner)) {
