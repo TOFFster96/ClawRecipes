@@ -15,6 +15,13 @@ Once published, you can install directly via npm:
 
 ```bash
 openclaw plugins install @jiggai/recipes
+
+# If you have plugins.allow set (plugin allowlist), you must explicitly add "recipes"
+# or OpenClaw will refuse to load it.
+openclaw config get plugins.allow --json
+# then add "recipes" and set it back, e.g.
+openclaw config set plugins.allow --json '["memory-core","telegram","recipes"]'
+
 openclaw gateway restart
 openclaw plugins list
 ```

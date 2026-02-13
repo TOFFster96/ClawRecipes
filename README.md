@@ -15,6 +15,12 @@ Once published:
 
 ```bash
 openclaw plugins install @jiggai/recipes
+
+# If you use a plugin allowlist (plugins.allow), you must explicitly trust it:
+openclaw config get plugins.allow --json
+# then add "recipes" and set it back, e.g.
+openclaw config set plugins.allow --json '["memory-core","telegram","recipes"]'
+
 openclaw gateway restart
 openclaw plugins list
 ```
