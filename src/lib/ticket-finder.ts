@@ -25,11 +25,17 @@ export function allLaneDirs(teamDir: string) {
   ];
 }
 
-export function parseTicketArg(ticketArg: string) {
-  const ticketNum = ticketArg.match(/^\d{4}$/)
-    ? ticketArg
-    : (ticketArg.match(/^(\d{4})-/)?.[1] ?? null);
-  return { ticketArg, ticketNum };
+export function parseTicketArg(ticketArgRaw: string) {
+  const raw = String(ticketArgRaw ?? "").trim();
+
+  // Accept "30" as shorthand for ticket 0030.
+  const padded = raw.match(/^\d+$/) && raw.length < 4 ? raw.padStart(4, "0") : raw;
+
+  const ticketNum = padded.match(/^\d{4}$/)
+    ? padded
+    : (padded.match(/^(\d{4})-/)?.[1] ?? null);
+
+  return { ticketArg: padded, ticketNum };
 }
 
 export async function findTicketFile(opts: {
