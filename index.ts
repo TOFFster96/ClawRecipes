@@ -1474,10 +1474,11 @@ const recipesPlugin = {
             const stageDir = (stage: string) => {
               if (stage === 'backlog') return path.join(teamDir, 'work', 'backlog');
               if (stage === 'in-progress') return path.join(teamDir, 'work', 'in-progress');
+              if (stage === 'testing') return path.join(teamDir, 'work', 'testing');
               if (stage === 'done') return path.join(teamDir, 'work', 'done');
               throw new Error(`Unknown stage: ${stage}`);
             };
-            const searchDirs = [stageDir('backlog'), stageDir('in-progress'), stageDir('done')];
+            const searchDirs = [stageDir('backlog'), stageDir('in-progress'), stageDir('testing'), stageDir('done')];
 
             const ticketArg = String(options.ticket);
             const ticketNum = ticketArg.match(/^\d{4}$/) ? ticketArg : (ticketArg.match(/^(\d{4})-/)?.[1] ?? null);
@@ -1566,10 +1567,11 @@ const recipesPlugin = {
             const stageDir = (stage: string) => {
               if (stage === 'backlog') return path.join(teamDir, 'work', 'backlog');
               if (stage === 'in-progress') return path.join(teamDir, 'work', 'in-progress');
+              if (stage === 'testing') return path.join(teamDir, 'work', 'testing');
               if (stage === 'done') return path.join(teamDir, 'work', 'done');
               throw new Error(`Unknown stage: ${stage}`);
             };
-            const searchDirs = [stageDir('backlog'), stageDir('in-progress'), stageDir('done')];
+            const searchDirs = [stageDir('backlog'), stageDir('in-progress'), stageDir('testing'), stageDir('done')];
 
             const ticketArg = String(options.ticket);
             const ticketNum = ticketArg.match(/^\d{4}$/) ? ticketArg : (ticketArg.match(/^(\d{4})-/)?.[1] ?? null);
