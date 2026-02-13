@@ -371,7 +371,14 @@ async function reconcileRecipeCronJobs(opts: {
   if (mode === "prompt") {
     const header = `Recipe ${opts.scope.recipeId} defines ${desired.length} cron job(s).\nThese run automatically on a schedule. Install them?`;
     userOptIn = await promptYesNo(header);
-    if (!userOptIn && !process.stdin.isTTY) {
+
+    // If the user declines, skip all cron reconciliation entirely. This avoids a
+    // potentially slow gateway cron.list call and matches user intent.
+    if (!userOptIn) {
+      return { ok: true, changed: false, note: "cron-installation-declined" as const, desiredCount: desired.length };
+    }
+
+    if (!process.stdin.isTTY) {
       console.error("Non-interactive mode: defaulting cron install to disabled.");
     }
   }
