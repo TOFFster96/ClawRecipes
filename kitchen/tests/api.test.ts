@@ -8,13 +8,23 @@ import {
   fetchHealth,
   fetchRecipes,
   fetchRecipe,
+  fetchRecipeStatus,
+  fetchActivity,
+  fetchCleanupPlan,
+  executeCleanup,
   scaffoldRecipeTeam,
+  scaffoldRecipeAgent,
+  installRecipeSkills,
   moveTicket,
   assignTicket,
   takeTicket,
   handoffTicket,
   completeTicket,
   dispatchTicket,
+  removeTeam,
+  fetchBindings,
+  addBindingAPI,
+  removeBindingAPI,
   DEMO_TEAMS,
   DEMO_TEAM_ID,
 } from '../app/src/api.ts';
@@ -44,6 +54,18 @@ describe('api parseApiError behavior', () => {
     );
 
     await expect(fetchTeams()).rejects.toThrow('raw error text');
+  });
+
+  test('removeTeam propagates API error on 400', async () => {
+    vi.stubGlobal('fetch', () =>
+      Promise.resolve({
+        ok: false,
+        text: () =>
+          Promise.resolve(JSON.stringify({ error: 'Team not found' })),
+      } as Response)
+    );
+
+    await expect(removeTeam('my-team')).rejects.toThrow('Team not found');
   });
 
   test('fetchTickets propagates API error on 400', async () => {
@@ -79,6 +101,19 @@ describe('api parseApiError behavior', () => {
     );
 
     await expect(fetchInbox('my-team')).rejects.toThrow('Team not found');
+  });
+
+  test('fetchInbox returns inbox items on success', async () => {
+    const data = [{ id: '1', title: 'Item 1' }, { id: '2', title: 'Item 2' }];
+    vi.stubGlobal('fetch', () =>
+      Promise.resolve({
+        ok: true,
+        json: () => Promise.resolve(data),
+      } as Response)
+    );
+
+    const result = await fetchInbox('my-team');
+    expect(result).toEqual(data);
   });
 
   test('fetchHealth propagates API error on 503', async () => {
@@ -325,6 +360,118 @@ describe('api success paths', () => {
     await expect(scaffoldRecipeTeam('default', 'my-team')).resolves.toBeUndefined();
   });
 
+  test('scaffoldRecipeAgent succeeds when res.ok', async () => {
+    vi.stubGlobal('fetch', () =>
+      Promise.resolve({
+        ok: true,
+        json: () => Promise.resolve({ ok: true }),
+      } as Response)
+    );
+
+    await expect(scaffoldRecipeAgent('pm-recipe', 'pm', { name: 'PM', overwrite: true })).resolves.toBeUndefined();
+  });
+
+  test('installRecipeSkills returns result when res.ok', async () => {
+    vi.stubGlobal('fetch', () =>
+      Promise.resolve({
+        ok: true,
+        json: () => Promise.resolve({ ok: true, installed: ['foo'] }),
+      } as Response)
+    );
+
+    const result = await installRecipeSkills('dev-team', { scope: 'global' });
+    expect(result).toEqual({ ok: true, installed: ['foo'] });
+  });
+
+  test('fetchActivity returns array when res.ok', async () => {
+    vi.stubGlobal('fetch', () =>
+      Promise.resolve({
+        ok: true,
+        json: () => Promise.resolve([{ id: '1', type: 'move', message: 'Moved', timestamp: '2025-01-01' }]),
+      } as Response)
+    );
+
+    const result = await fetchActivity();
+    expect(Array.isArray(result)).toBe(true);
+    expect(result[0]).toHaveProperty('id', '1');
+    expect(result[0]).toHaveProperty('message', 'Moved');
+  });
+
+  test('fetchActivity with limit appends query param', async () => {
+    let capturedUrl = '';
+    vi.stubGlobal('fetch', (url: string) => {
+      capturedUrl = url;
+      return Promise.resolve({
+        ok: true,
+        json: () => Promise.resolve([]),
+      } as Response);
+    });
+
+    await fetchActivity(25);
+    expect(capturedUrl).toBe('/api/activity?limit=25');
+  });
+
+  test('fetchCleanupPlan returns plan when res.ok', async () => {
+    vi.stubGlobal('fetch', () =>
+      Promise.resolve({
+        ok: true,
+        json: () =>
+          Promise.resolve({
+            ok: true,
+            dryRun: true,
+            rootDir: '/tmp',
+            candidates: [{ teamId: 'smoke-001-team', absPath: '/tmp/ws' }],
+            skipped: [],
+          }),
+      } as Response)
+    );
+
+    const result = await fetchCleanupPlan();
+    expect(result).toHaveProperty('ok', true);
+    expect(result).toHaveProperty('candidates');
+    expect(result.candidates[0]).toHaveProperty('teamId', 'smoke-001-team');
+  });
+
+  test('executeCleanup returns result when res.ok', async () => {
+    vi.stubGlobal('fetch', () =>
+      Promise.resolve({
+        ok: true,
+        json: () =>
+          Promise.resolve({
+            ok: true,
+            dryRun: false,
+            deleted: ['/tmp/workspace-smoke-001-team'],
+          }),
+      } as Response)
+    );
+
+    const result = await executeCleanup();
+    expect(result).toHaveProperty('ok', true);
+    expect(result).toHaveProperty('deleted');
+  });
+
+  test('fetchActivity propagates API error on 500', async () => {
+    vi.stubGlobal('fetch', () =>
+      Promise.resolve({
+        ok: false,
+        text: () => Promise.resolve(JSON.stringify({ error: 'Server error' })),
+      } as Response)
+    );
+
+    await expect(fetchActivity()).rejects.toThrow('Server error');
+  });
+
+  test('fetchCleanupPlan propagates API error on 503', async () => {
+    vi.stubGlobal('fetch', () =>
+      Promise.resolve({
+        ok: false,
+        text: () => Promise.resolve(JSON.stringify({ error: 'OpenClaw unavailable' })),
+      } as Response)
+    );
+
+    await expect(fetchCleanupPlan()).rejects.toThrow('OpenClaw unavailable');
+  });
+
   test('fetchHealth returns ok and openclaw on success', async () => {
     vi.stubGlobal('fetch', () =>
       Promise.resolve({
@@ -360,6 +507,167 @@ describe('api success paths', () => {
 
     const result = await fetchRecipe('default');
     expect(result).toEqual({ md: '# Recipe\nContent' });
+  });
+
+  test('fetchRecipeStatus returns array when API returns single object', async () => {
+    vi.stubGlobal('fetch', () =>
+      Promise.resolve({
+        ok: true,
+        json: () =>
+          Promise.resolve({
+            id: 'dev-team',
+            requiredSkills: [],
+            missingSkills: [],
+            installCommands: [],
+          }),
+      } as Response)
+    );
+
+    const result = await fetchRecipeStatus('dev-team');
+    expect(Array.isArray(result)).toBe(true);
+    expect(result).toHaveLength(1);
+    expect(result[0]).toHaveProperty('id', 'dev-team');
+  });
+
+  test('fetchRecipeStatus returns array when API returns array', async () => {
+    const data = [
+      { id: 'team1', requiredSkills: [], missingSkills: [], installCommands: [] },
+      { id: 'team2', requiredSkills: [], missingSkills: [], installCommands: [] },
+    ];
+    vi.stubGlobal('fetch', () =>
+      Promise.resolve({
+        ok: true,
+        json: () => Promise.resolve(data),
+      } as Response)
+    );
+
+    const result = await fetchRecipeStatus();
+    expect(result).toBe(data);
+    expect(result).toHaveLength(2);
+  });
+
+  test('removeTeam succeeds when res.ok', async () => {
+    vi.stubGlobal('fetch', () =>
+      Promise.resolve({
+        ok: true,
+        json: () => Promise.resolve({ ok: true }),
+      } as Response)
+    );
+
+    await expect(removeTeam('my-team-team')).resolves.toBeUndefined();
+  });
+
+  test('fetchBindings returns bindings on success', async () => {
+    const bindings = [{ agentId: 'my-agent', match: { channel: 'telegram' } }];
+    vi.stubGlobal('fetch', () =>
+      Promise.resolve({
+        ok: true,
+        json: () => Promise.resolve(bindings),
+      } as Response)
+    );
+
+    const result = await fetchBindings();
+    expect(result).toEqual(bindings);
+  });
+
+  test('fetchBindings propagates API error on 503', async () => {
+    vi.stubGlobal('fetch', () =>
+      Promise.resolve({
+        ok: false,
+        text: () =>
+          Promise.resolve(JSON.stringify({ error: 'OpenClaw unavailable' })),
+      } as Response)
+    );
+
+    await expect(fetchBindings()).rejects.toThrow('OpenClaw unavailable');
+  });
+
+  test('addBindingAPI succeeds when res.ok', async () => {
+    vi.stubGlobal('fetch', () =>
+      Promise.resolve({
+        ok: true,
+        json: () => Promise.resolve({ ok: true }),
+      } as Response)
+    );
+
+    await expect(
+      addBindingAPI('my-agent', { channel: 'telegram' })
+    ).resolves.toBeUndefined();
+  });
+
+  test('addBindingAPI propagates API error on 400', async () => {
+    vi.stubGlobal('fetch', () =>
+      Promise.resolve({
+        ok: false,
+        text: () =>
+          Promise.resolve(JSON.stringify({ error: 'Missing match.channel' })),
+      } as Response)
+    );
+
+    await expect(
+      addBindingAPI('my-agent', { channel: 'slack' })
+    ).rejects.toThrow('Missing match.channel');
+  });
+
+  test('removeBindingAPI succeeds when res.ok', async () => {
+    vi.stubGlobal('fetch', () =>
+      Promise.resolve({
+        ok: true,
+        json: () => Promise.resolve({ ok: true }),
+      } as Response)
+    );
+
+    await expect(
+      removeBindingAPI({ channel: 'telegram' })
+    ).resolves.toBeUndefined();
+  });
+
+  test('removeBindingAPI with agentId sends body', async () => {
+    let capturedBody = '';
+    vi.stubGlobal('fetch', (url: string, opts?: RequestInit) => {
+      capturedBody = opts?.body as string || '';
+      return Promise.resolve({
+        ok: true,
+        json: () => Promise.resolve({ ok: true }),
+      } as Response);
+    });
+
+    await removeBindingAPI({ channel: 'telegram' }, 'my-agent');
+    const body = JSON.parse(capturedBody);
+    expect(body.agentId).toBe('my-agent');
+    expect(body.match).toEqual({ channel: 'telegram' });
+  });
+
+  test('installRecipeSkills with team scope sends teamId', async () => {
+    let capturedBody = '';
+    vi.stubGlobal('fetch', (url: string, opts?: RequestInit) => {
+      capturedBody = opts?.body as string || '';
+      return Promise.resolve({
+        ok: true,
+        json: () => Promise.resolve({ ok: true, installed: [] }),
+      } as Response);
+    });
+
+    await installRecipeSkills('dev-team', { scope: 'team', teamId: 'my-team' });
+    const body = JSON.parse(capturedBody);
+    expect(body.scope).toBe('team');
+    expect(body.teamId).toBe('my-team');
+  });
+
+  test('installRecipeSkills with agent scope sends agentId', async () => {
+    let capturedBody = '';
+    vi.stubGlobal('fetch', (url: string, opts?: RequestInit) => {
+      capturedBody = opts?.body as string || '';
+      return Promise.resolve({
+        ok: true,
+        json: () => Promise.resolve({ ok: true, installed: [] }),
+      } as Response);
+    });
+
+    await installRecipeSkills('dev-team', { scope: 'agent', agentId: 'pm' });
+    const body = JSON.parse(capturedBody);
+    expect(body.scope).toBe('agent');
+    expect(body.agentId).toBe('pm');
   });
 
   test('DEMO_TEAMS has expected shape', () => {

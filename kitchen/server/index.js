@@ -13,6 +13,10 @@ import {
   showRecipe,
   recipeStatus,
   scaffoldTeam,
+  scaffoldAgent,
+  planCleanup,
+  executeCleanup,
+  installRecipeSkills,
   checkOpenClaw,
   moveTicket,
   assignTicket,
@@ -31,6 +35,7 @@ import {
   getDemoInbox,
   getDemoInboxItemContent,
 } from "./demo-workspace.js";
+import { appendEvent, getRecentEvents } from "./activity.js";
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const PORT = process.env.PORT || 3456;
@@ -177,6 +182,12 @@ function guardDemoTeam(teamId, res) {
   if (!to) return res.status(400).json({ error: "Missing 'to' (stage)" });
   try {
     moveTicket(teamId, ticketId, to, { completed: !!completed });
+    appendEvent({
+      type: "move",
+      teamId,
+      ticketId,
+      message: `Moved ticket ${ticketId} to ${to}`,
+    });
     res.json({ ok: true });
   } catch (err) {
     console.error("[kitchen] POST move:", err);
@@ -192,6 +203,12 @@ function guardDemoTeam(teamId, res) {
   if (!owner) return res.status(400).json({ error: "Missing 'owner'" });
   try {
     assignTicket(teamId, ticketId, owner);
+    appendEvent({
+      type: "assign",
+      teamId,
+      ticketId,
+      message: `Assigned ${ticketId} to ${owner}`,
+    });
     res.json({ ok: true });
   } catch (err) {
     console.error("[kitchen] POST assign:", err);
@@ -207,6 +224,12 @@ function guardDemoTeam(teamId, res) {
   if (!owner) return res.status(400).json({ error: "Missing 'owner'" });
   try {
     takeTicket(teamId, ticketId, owner);
+    appendEvent({
+      type: "take",
+      teamId,
+      ticketId,
+      message: `${owner} took ticket ${ticketId}`,
+    });
     res.json({ ok: true });
   } catch (err) {
     console.error("[kitchen] POST take:", err);
@@ -221,6 +244,12 @@ function guardDemoTeam(teamId, res) {
   if (guardDemoTeam(teamId, res)) return;
   try {
     handoffTicket(teamId, ticketId, tester || "test");
+    appendEvent({
+      type: "handoff",
+      teamId,
+      ticketId,
+      message: `Handed off ${ticketId} to ${tester || "test"}`,
+    });
     res.json({ ok: true });
   } catch (err) {
     console.error("[kitchen] POST handoff:", err);
@@ -234,6 +263,12 @@ function guardDemoTeam(teamId, res) {
   if (guardDemoTeam(teamId, res)) return;
   try {
     completeTicket(teamId, ticketId);
+    appendEvent({
+      type: "complete",
+      teamId,
+      ticketId,
+      message: `Completed ticket ${ticketId}`,
+    });
     res.json({ ok: true });
   } catch (err) {
     console.error("[kitchen] POST complete:", err);
@@ -318,9 +353,38 @@ function guardDemoTeam(teamId, res) {
   }
   try {
     scaffoldTeam(recipeId, tid, { overwrite: !!overwrite });
+    appendEvent({
+      type: "scaffold-team",
+      teamId: tid,
+      message: `Scaffolded team ${tid} from ${recipeId}`,
+    });
     res.json({ ok: true });
   } catch (err) {
     console.error("[kitchen] POST /api/recipes/:id/scaffold-team:", err);
+    res.status(400).json({ error: formatError(err) });
+  }
+});
+
+  app.post("/api/recipes/:id/scaffold-agent", async (req, res) => {
+  const { id: recipeId } = req.params;
+  const { agentId, name, overwrite } = req.body || {};
+  if (await guardOpenClaw(res)) return;
+  if (!agentId || typeof agentId !== "string" || !agentId.trim()) {
+    return res.status(400).json({ error: "Missing 'agentId'" });
+  }
+  const aid = agentId.trim();
+  if (!/^[a-zA-Z0-9_-]+$/.test(aid)) {
+    return res.status(400).json({ error: "Invalid agentId format" });
+  }
+  try {
+    scaffoldAgent(recipeId, aid, { name, overwrite: !!overwrite });
+    appendEvent({
+      type: "scaffold-agent",
+      message: `Scaffolded agent ${aid} from ${recipeId}`,
+    });
+    res.json({ ok: true });
+  } catch (err) {
+    console.error("[kitchen] POST /api/recipes/:id/scaffold-agent:", err);
     res.status(400).json({ error: formatError(err) });
   }
 });
@@ -376,10 +440,79 @@ function guardDemoTeam(teamId, res) {
   }
   try {
     dispatch(teamId, request, owner || "dev");
+    appendEvent({
+      type: "dispatch",
+      teamId,
+      message: `Dispatched request to ${teamId}`,
+    });
     res.json({ ok: true });
   } catch (err) {
     console.error("[kitchen] POST dispatch:", err);
     res.status(400).json({ error: formatError(err) });
+  }
+});
+
+  app.get("/api/activity", (req, res) => {
+  const limit = Math.min(
+    parseInt(req.query.limit, 10) || 50,
+    200
+  );
+  try {
+    const events = getRecentEvents(limit);
+    res.json(events);
+  } catch (err) {
+    console.error("[kitchen] GET /api/activity:", err);
+    res.status(500).json({ error: formatError(err) });
+  }
+});
+
+  app.post("/api/recipes/:id/install", async (req, res) => {
+  const { id: recipeId } = req.params;
+  const { scope = "global", teamId, agentId } = req.body || {};
+  if (await guardOpenClaw(res)) return;
+  if (!["global", "team", "agent"].includes(scope)) {
+    return res.status(400).json({ error: "Invalid scope" });
+  }
+  if (scope === "team" && (!teamId || !teamId.endsWith("-team"))) {
+    return res.status(400).json({ error: "teamId required and must end with -team for team scope" });
+  }
+  if (scope === "agent" && !agentId) {
+    return res.status(400).json({ error: "agentId required for agent scope" });
+  }
+  try {
+    const result = await installRecipeSkills(recipeId, { scope, teamId, agentId });
+    if (result.installed?.length > 0) {
+      appendEvent({
+        type: "install",
+        message: `Installed skills for ${recipeId}: ${result.installed.join(", ")}`,
+      });
+    }
+    res.json(result);
+  } catch (err) {
+    console.error("[kitchen] POST /api/recipes/:id/install:", err);
+    res.status(400).json({ error: formatError(err) });
+  }
+});
+
+  app.get("/api/cleanup/plan", async (_req, res) => {
+  if (await guardOpenClaw(res)) return;
+  try {
+    const plan = await planCleanup();
+    res.json(plan);
+  } catch (err) {
+    console.error("[kitchen] GET /api/cleanup/plan:", err);
+    res.status(502).json({ error: formatError(err) });
+  }
+});
+
+  app.post("/api/cleanup/execute", async (_req, res) => {
+  if (await guardOpenClaw(res)) return;
+  try {
+    const result = await executeCleanup();
+    res.json(result);
+  } catch (err) {
+    console.error("[kitchen] POST /api/cleanup/execute:", err);
+    res.status(502).json({ error: formatError(err) });
   }
 });
 

@@ -94,4 +94,24 @@ describe('demo-workspace', () => {
     expect(content).toBeTruthy();
     expect(content).toMatch(/Update README|Owner|Status/i);
   });
+
+  test('getDemoInbox creates inbox files when missing', async () => {
+    const inboxPath = join(DEMO_WORKSPACE, 'inbox', 'inbox-001.md');
+    try {
+      await unlink(inboxPath);
+    } catch {
+      /* file may not exist yet */
+    }
+    const items = await getDemoInbox();
+    expect(items.some((i) => i.id === 'inbox-001')).toBe(true);
+    const content = await getDemoInboxItemContent('inbox-001');
+    expect(content).toContain('Feature request');
+  });
+
+  test('getDemoTicketContent returns content for all stages', async () => {
+    expect(await getDemoTicketContent('0003-refactor-api')).toBeTruthy();
+    expect(await getDemoTicketContent('0004-auth-flow')).toBeTruthy();
+    expect(await getDemoTicketContent('0000-project-kickoff')).toBeTruthy();
+  });
+
 });

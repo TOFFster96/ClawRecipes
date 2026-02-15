@@ -5,6 +5,7 @@ import crypto from "node:crypto";
 import JSON5 from "json5";
 import YAML from "yaml";
 import { buildRemoveTeamPlan, executeRemoveTeamPlan, loadCronStore, saveCronStore } from "./src/lib/remove-team";
+import { planWorkspaceCleanup, executeWorkspaceCleanup } from "./src/lib/cleanup-workspaces";
 
 type RecipesConfig = {
   workspaceRecipesDir?: string;
@@ -2083,6 +2084,43 @@ const recipesPlugin = {
             } catch (e) {
               process.exitCode = 1;
               throw e;
+            }
+          });
+
+        cmd
+          .command("cleanup-workspaces")
+          .description("List (dry-run) or delete temporary test/scaffold team workspaces")
+          .option("--yes", "Actually delete eligible workspaces")
+          .option("--prefix <prefix>", "Allowed prefix for teamId")
+          .option("--json", "Output JSON")
+          .action(async (options: any) => {
+            const workspaceRoot = api.config.agents?.defaults?.workspace;
+            if (!workspaceRoot) throw new Error("agents.defaults.workspace is not set in config");
+            const rootDir = path.resolve(workspaceRoot, "..");
+            const prefixOpt = options.prefix;
+            const prefixes = prefixOpt != null
+              ? (Array.isArray(prefixOpt) ? prefixOpt : [prefixOpt])
+              : undefined;
+            const plan = await planWorkspaceCleanup({ rootDir, prefixes });
+            const result = await executeWorkspaceCleanup(plan, { yes: !!options.yes });
+            if (options.json) {
+              console.log(JSON.stringify(result, null, 2));
+            } else {
+              const candidates = plan.decisions.filter((d: any) => d.kind === "candidate");
+              if (result.dryRun) {
+                console.log(`Dry run: ${candidates.length} workspace(s) would be deleted`);
+                for (const c of candidates) {
+                  console.log(`  - ${c.teamId} (${c.absPath})`);
+                }
+              } else {
+                console.log(`Deleted ${result.deleted.length} workspace(s)`);
+                for (const p of result.deleted) {
+                  console.log(`  - ${p}`);
+                }
+                if ((result as any).deleteErrors?.length) {
+                  console.error("Errors:", (result as any).deleteErrors);
+                }
+              }
             }
           });
 

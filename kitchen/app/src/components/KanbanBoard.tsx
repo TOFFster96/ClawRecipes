@@ -70,7 +70,7 @@ export function KanbanBoard({
               {cols[colKey].length === 0 ? (
                 <div className="kanban-empty-state">
                   <svg className="kanban-empty-icon" viewBox="0 0 24 24" fill="currentColor" aria-hidden>
-                    <path d="M19 3H5c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h14c1.1 0 2-.9 2-2V5c0-1.1-.9-2-2-2zm0 16H5V5h14v14z" />
+                    <path d="M3 5h2v2H3V5zm4 0h14v2H7V5zm-4 6h2v2H3v-2zm4 0h14v2H7v-2zm-4 6h2v2H3v-2zm4 0h14v2H7v-2z" />
                   </svg>
                   <p className="text-muted mb-0">Nothing here yet</p>
                 </div>

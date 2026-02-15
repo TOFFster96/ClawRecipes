@@ -13,6 +13,8 @@ import {
 import { Button, Container, Modal, Nav } from "react-bootstrap";
 import { TeamPicker } from "../components/TeamPicker";
 import { KanbanBoard } from "../components/KanbanBoard";
+import { ActivityFeed } from "../components/ActivityFeed";
+import { CleanupModal } from "../components/CleanupModal";
 import { TicketDetail } from "../components/TicketDetail";
 import { DispatchModal } from "../components/DispatchModal";
 import { InboxList } from "../components/InboxList";
@@ -42,8 +44,11 @@ export function BoardPage() {
   const [removeConfirmTeamId, setRemoveConfirmTeamId] = useState<string | null>(null);
   const [removeLoading, setRemoveLoading] = useState(false);
   const [removeError, setRemoveError] = useState<string | null>(null);
+  const [cleanupModalOpen, setCleanupModalOpen] = useState(false);
 
   const prevDemoMode = useRef(demoMode);
+  const ticketsDataRef = useRef(ticketsData);
+  ticketsDataRef.current = ticketsData;
   const teamFromUrl = searchParams.get("team");
 
   // When URL has ?team=demo-team, enter demo mode so demo data loads consistently (e.g. after refresh).
@@ -98,7 +103,12 @@ export function BoardPage() {
 
     let cancelled = false;
     const load = async () => {
-      setTicketsLoading(true);
+      const current = ticketsDataRef.current;
+      const isBackgroundRefresh =
+        current?.teamId === selectedTeamId;
+      if (!isBackgroundRefresh) {
+        setTicketsLoading(true);
+      }
       setTicketsError(null);
       try {
         const data = await fetchTickets(selectedTeamId);
@@ -109,7 +119,7 @@ export function BoardPage() {
       } catch (e) {
         if (!cancelled) {
           setTicketsError(String(e));
-          setTicketsData(null);
+          if (!isBackgroundRefresh) setTicketsData(null);
         }
       } finally {
         if (!cancelled) setTicketsLoading(false);
@@ -196,8 +206,10 @@ export function BoardPage() {
   };
 
   return (
-    <Container fluid="lg" className="py-4">
-      <TeamPicker
+    <div className="board-page-layout d-flex">
+      <div className="board-main flex-grow-1 min-w-0 overflow-auto">
+        <Container fluid="lg" className="py-4">
+          <TeamPicker
         teams={displayTeams}
         selectedTeamId={selectedTeamId}
         onSelect={handleSelectTeam}
@@ -207,13 +219,35 @@ export function BoardPage() {
         loading={teamsLoading}
         error={teamsError}
       />
+          {!demoMode && (
+            <div className="mb-3">
+              <button
+                type="button"
+                className="btn btn-link btn-sm p-0 text-muted"
+                onClick={() => setCleanupModalOpen(true)}
+              >
+                Cleanup workspaces
+              </button>
+            </div>
+          )}
+
+      <CleanupModal
+        show={cleanupModalOpen}
+        onHide={() => setCleanupModalOpen(false)}
+        onSuccess={() => setRefreshTrigger((n) => n + 1)}
+      />
 
       <Modal
         show={!!removeConfirmTeamId}
         onHide={() => !removeLoading && setRemoveConfirmTeamId(null)}
       >
         <Modal.Header closeButton>
-          <Modal.Title>Delete team</Modal.Title>
+          <Modal.Title className="d-flex align-items-center gap-2">
+            <svg width="24" height="24" viewBox="0 0 24 24" fill="currentColor" className="text-warning" aria-hidden>
+              <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm1 15h-2v-2h2v2zm0-4h-2V7h2v6z" />
+            </svg>
+            Delete team
+          </Modal.Title>
         </Modal.Header>
         <Modal.Body>
           {removeError && (
@@ -329,6 +363,9 @@ export function BoardPage() {
           )}
         </>
       )}
-    </Container>
+        </Container>
+      </div>
+      <ActivityFeed />
+    </div>
   );
 }

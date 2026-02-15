@@ -1,6 +1,6 @@
 import React from 'react';
 import { describe, expect, test, vi, beforeEach, afterEach } from 'vitest';
-import { render, screen, cleanup, waitFor } from '@testing-library/react';
+import { render, screen, cleanup, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { MemoryRouter } from 'react-router-dom';
 import { RecipesPage } from './RecipesPage';
@@ -11,6 +11,8 @@ vi.mock('../api', () => ({
   fetchRecipe: vi.fn(),
   fetchRecipeStatus: vi.fn(),
   scaffoldRecipeTeam: vi.fn(),
+  scaffoldRecipeAgent: vi.fn(),
+  installRecipeSkills: vi.fn(),
 }));
 
 import * as api from '../api';
@@ -92,7 +94,7 @@ describe('RecipesPage', () => {
   test('shows No recipes found when empty', async () => {
     vi.mocked(api.fetchRecipes).mockResolvedValue([]);
     renderRecipesPage();
-    expect(await screen.findByText('No recipes found.')).toBeInTheDocument();
+    expect(await screen.findByText('No recipes found')).toBeInTheDocument();
   });
 
   test('shows missing skills badge when recipe has missing skills', async () => {
@@ -291,5 +293,152 @@ describe('RecipesPage', () => {
     await screen.findByRole('dialog');
     await user.click(screen.getByLabelText('Close'));
     await waitFor(() => expect(screen.queryByRole('dialog')).not.toBeInTheDocument());
+  });
+
+  test('scaffold agent opens modal and submits', async () => {
+    vi.mocked(api.fetchRecipes).mockResolvedValue([
+      { id: 'agent-pm', name: 'PM Agent', source: 'builtin', kind: 'agent' },
+    ]);
+    vi.mocked(api.scaffoldRecipeAgent).mockResolvedValue(undefined);
+    const user = userEvent.setup();
+    renderRecipesPage();
+    await screen.findByText('PM Agent');
+    await user.click(screen.getByRole('button', { name: 'Scaffold agent' }));
+    expect(await screen.findByRole('dialog')).toHaveTextContent('Scaffold agent');
+    await user.type(screen.getByPlaceholderText('e.g. pm'), 'pm');
+    await user.click(screen.getByRole('button', { name: 'Scaffold' }));
+    await waitFor(() => {
+      expect(api.scaffoldRecipeAgent).toHaveBeenCalledWith('agent-pm', 'pm', { name: undefined, overwrite: false });
+    });
+  });
+
+  test('scaffold agent with name and overwrite', async () => {
+    vi.mocked(api.fetchRecipes).mockResolvedValue([
+      { id: 'agent-pm', name: 'PM Agent', source: 'builtin', kind: 'agent' },
+    ]);
+    vi.mocked(api.scaffoldRecipeAgent).mockResolvedValue(undefined);
+    const user = userEvent.setup();
+    renderRecipesPage();
+    await screen.findByText('PM Agent');
+    await user.click(screen.getByRole('button', { name: 'Scaffold agent' }));
+    const dialogs = await screen.findAllByRole('dialog');
+    const dialog = dialogs.find((d) => d.textContent?.includes('Scaffold agent')) ?? dialogs[0];
+    await user.type(within(dialog).getByPlaceholderText('e.g. pm'), 'pm');
+    await user.type(within(dialog).getByPlaceholderText('e.g. Project Manager'), 'Project Manager');
+    await user.click(within(dialog).getByRole('checkbox'));
+    await user.click(within(dialog).getByRole('button', { name: 'Scaffold' }));
+    await waitFor(() => {
+      expect(api.scaffoldRecipeAgent).toHaveBeenCalledWith('agent-pm', 'pm', {
+        name: 'Project Manager',
+        overwrite: true,
+      });
+    });
+  });
+
+  test('scaffold agent Cancel closes modal', async () => {
+    vi.mocked(api.fetchRecipes).mockResolvedValue([
+      { id: 'agent-pm', name: 'PM Agent', source: 'builtin', kind: 'agent' },
+    ]);
+    const user = userEvent.setup();
+    renderRecipesPage();
+    await screen.findByText('PM Agent');
+    await user.click(screen.getByRole('button', { name: 'Scaffold agent' }));
+    expect(screen.getByRole('dialog')).toBeInTheDocument();
+    await user.click(screen.getByRole('button', { name: 'Cancel' }));
+    await waitFor(() => expect(screen.queryByRole('dialog')).not.toBeInTheDocument());
+  });
+
+  test('scaffold agent shows error when API throws', async () => {
+    vi.mocked(api.fetchRecipes).mockResolvedValue([
+      { id: 'agent-pm', name: 'PM Agent', source: 'builtin', kind: 'agent' },
+    ]);
+    vi.mocked(api.scaffoldRecipeAgent).mockRejectedValue(new Error('Agent exists'));
+    const user = userEvent.setup();
+    renderRecipesPage();
+    await screen.findByText('PM Agent');
+    await user.click(screen.getByRole('button', { name: 'Scaffold agent' }));
+    await screen.findByRole('dialog');
+    await user.type(screen.getByPlaceholderText('e.g. pm'), 'pm');
+    await user.click(screen.getByRole('button', { name: 'Scaffold' }));
+    expect(await screen.findByText(/Agent exists/)).toBeInTheDocument();
+  });
+
+  test('Install skills calls installRecipeSkills and refetches status', async () => {
+    vi.mocked(api.fetchRecipeStatus).mockResolvedValue([
+      { id: 'default', requiredSkills: ['skill-a'], missingSkills: ['skill-a'], installCommands: [] },
+    ]);
+    vi.mocked(api.installRecipeSkills).mockResolvedValue({ ok: true, installed: ['skill-a'] });
+    vi.mocked(api.fetchRecipeStatus).mockResolvedValueOnce([
+      { id: 'default', requiredSkills: ['skill-a'], missingSkills: ['skill-a'], installCommands: [] },
+    ]).mockResolvedValueOnce([
+      { id: 'default', requiredSkills: ['skill-a'], missingSkills: [], installCommands: [] },
+    ]);
+    const user = userEvent.setup();
+    renderRecipesPage();
+    await screen.findByText('Install skills');
+    await user.click(screen.getByRole('button', { name: 'Install skills' }));
+    await waitFor(() => {
+      expect(api.installRecipeSkills).toHaveBeenCalledWith('default', { scope: 'global' });
+    });
+    await waitFor(() => {
+      expect(api.fetchRecipeStatus).toHaveBeenCalledWith('default');
+    });
+  });
+
+  test('Install skills shows error when API returns errors', async () => {
+    vi.mocked(api.fetchRecipeStatus).mockResolvedValue([
+      { id: 'default', requiredSkills: ['skill-a'], missingSkills: ['skill-a'], installCommands: [] },
+    ]);
+    vi.mocked(api.fetchRecipe).mockResolvedValue({ md: '# Content' });
+    vi.mocked(api.installRecipeSkills).mockResolvedValue({
+      ok: false,
+      installed: [],
+      errors: [{ skill: 'skill-a', error: 'Not found' }],
+    });
+    const user = userEvent.setup();
+    renderRecipesPage();
+    await screen.findByText('Default');
+    await user.click(screen.getByText('Default'));
+    const dialog = await screen.findByRole('dialog');
+    const installBtn = within(dialog).getByRole('button', { name: 'Install skills' });
+    await user.click(installBtn);
+    expect(await screen.findByText(/skill-a: Not found/)).toBeInTheDocument();
+  });
+
+  test('Install skills shows error when API throws', async () => {
+    vi.mocked(api.fetchRecipeStatus).mockResolvedValue([
+      { id: 'default', requiredSkills: ['skill-a'], missingSkills: ['skill-a'], installCommands: [] },
+    ]);
+    vi.mocked(api.fetchRecipe).mockResolvedValue({ md: '# Content' });
+    vi.mocked(api.installRecipeSkills).mockRejectedValue(new Error('Network error'));
+    const user = userEvent.setup();
+    renderRecipesPage();
+    await screen.findByText('Default');
+    await user.click(screen.getByText('Default'));
+    const dialog = await screen.findByRole('dialog');
+    const installBtn = within(dialog).getByRole('button', { name: 'Install skills' });
+    await user.click(installBtn);
+    expect(await screen.findByText(/Network error/)).toBeInTheDocument();
+  });
+
+  test('scaffold agent from recipe detail modal', async () => {
+    vi.mocked(api.fetchRecipes).mockResolvedValue([
+      { id: 'agent-pm', name: 'PM Agent', source: 'builtin', kind: 'agent' },
+    ]);
+    vi.mocked(api.fetchRecipe).mockResolvedValue({ md: '# Agent markdown' });
+    vi.mocked(api.scaffoldRecipeAgent).mockResolvedValue(undefined);
+    const user = userEvent.setup();
+    renderRecipesPage();
+    await screen.findByText('PM Agent');
+    await user.click(screen.getByText('PM Agent'));
+    await screen.findByText(/Agent markdown/);
+    const scaffoldBtns = screen.getAllByRole('button', { name: 'Scaffold agent' });
+    await user.click(scaffoldBtns[scaffoldBtns.length - 1]);
+    await screen.findByPlaceholderText('e.g. pm');
+    await user.type(screen.getByPlaceholderText('e.g. pm'), 'pm');
+    await user.click(screen.getByRole('button', { name: 'Scaffold' }));
+    await waitFor(() => {
+      expect(api.scaffoldRecipeAgent).toHaveBeenCalledWith('agent-pm', 'pm', expect.any(Object));
+    });
   });
 });

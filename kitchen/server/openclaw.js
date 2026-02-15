@@ -1,5 +1,5 @@
 import { execSync, spawnSync } from "node:child_process";
-import { readdir, readFile } from "node:fs/promises";
+import { readdir, readFile, mkdir } from "node:fs/promises";
 import { join, dirname } from "node:path";
 /**
  * Pass through process env for openclaw CLI. Do NOT set OPENCLAW_HOME to ~/.openclaw:
@@ -31,18 +31,23 @@ export async function checkOpenClaw() {
   }
 }
 
-function getWorkspaceParent() {
+function getWorkspaceRoot() {
   try {
     const out = execSync("openclaw config get agents.defaults.workspace", {
       ...SILENT_CLI,
       env: CLI_ENV,
     });
     const workspaceRoot = out.trim();
-    if (!workspaceRoot) return null;
-    return dirname(workspaceRoot);
+    return workspaceRoot || null;
   } catch {
     return null;
   }
+}
+
+function getWorkspaceParent() {
+  const workspaceRoot = getWorkspaceRoot();
+  if (!workspaceRoot) return null;
+  return dirname(workspaceRoot);
 }
 
 /**
@@ -171,6 +176,130 @@ export function scaffoldTeam(recipeId, teamId, options = {}) {
   ];
   if (options.overwrite) args.push("--overwrite");
   runOpenClaw(args, SCAFFOLD_TIMEOUT);
+}
+
+/**
+ * Scaffold a single agent from an agent recipe.
+ * @param {string} recipeId
+ * @param {string} agentId
+ * @param {{ name?: string; overwrite?: boolean }} options
+ */
+export function scaffoldAgent(recipeId, agentId, options = {}) {
+  if (!recipeId || !/^[a-zA-Z0-9_-]+$/.test(recipeId)) {
+    throw new Error("Invalid recipeId");
+  }
+  if (!agentId || !/^[a-zA-Z0-9_-]+$/.test(agentId)) {
+    throw new Error("Invalid agentId");
+  }
+  const args = [
+    "recipes",
+    "scaffold",
+    recipeId,
+    "--agent-id",
+    agentId,
+    "--apply-config",
+  ];
+  if (options.name && options.name.trim()) args.push("--name", options.name.trim());
+  if (options.overwrite) args.push("--overwrite");
+  runOpenClaw(args, SCAFFOLD_TIMEOUT);
+}
+
+const SKILLS_DIR = "skills";
+const INSTALL_TIMEOUT = 120000;
+
+/**
+ * Install missing skills for a recipe.
+ * @param {string} recipeId
+ * @param {{ scope: 'global'|'team'|'agent'; teamId?: string; agentId?: string }} options
+ * @returns {Promise<{ ok: boolean; installed: string[]; errors?: Array<{ skill: string; error: string }> }>}
+ */
+export async function installRecipeSkills(recipeId, options = {}) {
+  const { scope = "global", teamId, agentId } = options;
+  const statusList = recipeStatus(recipeId);
+  const item = Array.isArray(statusList) ? statusList[0] : statusList;
+  if (!item) throw new Error(`Recipe not found: ${recipeId}`);
+  const missing = item.missingSkills ?? [];
+  if (missing.length === 0) {
+    return { ok: true, installed: [] };
+  }
+
+  const stateDir = getWorkspaceParent();
+  if (!stateDir) throw new Error("OpenClaw workspace not configured");
+
+  let workdir;
+  if (scope === "team") {
+    if (!teamId || !teamId.endsWith("-team")) throw new Error("teamId required and must end with -team");
+    workdir = join(stateDir, `workspace-${teamId}`);
+  } else if (scope === "agent") {
+    if (!agentId) throw new Error("agentId required for agent scope");
+    workdir = join(stateDir, `workspace-${agentId}`);
+  } else {
+    workdir = stateDir;
+  }
+
+  await mkdir(join(workdir, SKILLS_DIR), { recursive: true });
+
+  const installed = [];
+  const errors = [];
+
+  for (const slug of missing) {
+    const result = spawnSync(
+      "npx",
+      ["clawhub@latest", "--workdir", workdir, "--dir", SKILLS_DIR, "install", slug],
+      {
+        encoding: "utf8",
+        timeout: INSTALL_TIMEOUT,
+        env: { ...process.env, CLAWHUB_DISABLE_TELEMETRY: "1" },
+      }
+    );
+    if (result.error) {
+      errors.push({ skill: slug, error: String(result.error) });
+    } else if (result.status !== 0) {
+      errors.push({ skill: slug, error: result.stderr || result.stdout || `exit ${result.status}` });
+    } else {
+      installed.push(slug);
+    }
+  }
+
+  return {
+    ok: errors.length === 0,
+    installed,
+    ...(errors.length > 0 && { errors }),
+  };
+}
+
+/**
+ * Get cleanup plan (dry-run) for eligible workspace dirs.
+ * @returns {Promise<{ ok: boolean; dryRun: boolean; rootDir: string; candidates: Array<{ teamId: string; absPath: string }>; skipped: Array<{ teamId?: string; dirName: string; reason: string }> }>}
+ */
+export async function planCleanup() {
+  const result = spawnSync("openclaw", ["recipes", "cleanup-workspaces", "--json"], {
+    encoding: "utf8",
+    timeout: CLI_TIMEOUT,
+    env: CLI_ENV,
+  });
+  if (result.error) throw result.error;
+  if (result.status !== 0) {
+    throw new Error(result.stderr || result.stdout || `openclaw exited with ${result.status}`);
+  }
+  return JSON.parse(result.stdout || "{}");
+}
+
+/**
+ * Execute cleanup (delete eligible workspaces).
+ * @returns {Promise<{ ok: boolean; dryRun: boolean; rootDir: string; candidates: Array; skipped: Array; deleted: string[]; deleteErrors?: Array<{ path: string; error: string }> }>}
+ */
+export async function executeCleanup() {
+  const result = spawnSync("openclaw", ["recipes", "cleanup-workspaces", "--yes", "--json"], {
+    encoding: "utf8",
+    timeout: CLI_TIMEOUT,
+    env: CLI_ENV,
+  });
+  if (result.error) throw result.error;
+  if (result.status !== 0) {
+    throw new Error(result.stderr || result.stdout || `openclaw exited with ${result.status}`);
+  }
+  return JSON.parse(result.stdout || "{}");
 }
 
 /**

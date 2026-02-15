@@ -217,6 +217,39 @@ export async function scaffoldRecipeTeam(
   if (!res.ok) throw new Error(await parseApiError(res));
 }
 
+export async function installRecipeSkills(
+  recipeId: string,
+  options: { scope?: "global" | "team" | "agent"; teamId?: string; agentId?: string }
+): Promise<{ ok: boolean; installed: string[]; errors?: Array<{ skill: string; error: string }> }> {
+  const res = await fetch(`/api/recipes/${encodeURIComponent(recipeId)}/install`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(options),
+  });
+  if (!res.ok) throw new Error(await parseApiError(res));
+  return res.json();
+}
+
+export async function scaffoldRecipeAgent(
+  recipeId: string,
+  agentId: string,
+  options?: { name?: string; overwrite?: boolean }
+): Promise<void> {
+  const res = await fetch(
+    `/api/recipes/${encodeURIComponent(recipeId)}/scaffold-agent`,
+    {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        agentId,
+        name: options?.name,
+        overwrite: options?.overwrite,
+      }),
+    }
+  );
+  if (!res.ok) throw new Error(await parseApiError(res));
+}
+
 export type Binding = {
   agentId: string;
   match: {
@@ -256,6 +289,48 @@ export async function removeBindingAPI(
     body: JSON.stringify({ agentId, match }),
   });
   if (!res.ok) throw new Error(await parseApiError(res));
+}
+
+export type ActivityEvent = {
+  id: string;
+  type: string;
+  teamId?: string;
+  ticketId?: string;
+  message: string;
+  timestamp: string;
+};
+
+export async function fetchActivity(limit?: number): Promise<ActivityEvent[]> {
+  const url = limit ? `/api/activity?limit=${limit}` : "/api/activity";
+  const res = await fetch(url);
+  if (!res.ok) throw new Error(await parseApiError(res));
+  return res.json();
+}
+
+export async function fetchCleanupPlan(): Promise<{
+  ok: boolean;
+  dryRun: boolean;
+  rootDir: string;
+  candidates: Array<{ teamId: string; absPath: string }>;
+  skipped: Array<{ teamId?: string; dirName: string; reason: string }>;
+}> {
+  const res = await fetch("/api/cleanup/plan");
+  if (!res.ok) throw new Error(await parseApiError(res));
+  return res.json();
+}
+
+export async function executeCleanup(): Promise<{
+  ok: boolean;
+  dryRun: boolean;
+  rootDir: string;
+  candidates: Array<{ teamId: string; absPath: string }>;
+  skipped: Array<{ teamId?: string; dirName: string; reason: string }>;
+  deleted: string[];
+  deleteErrors?: Array<{ path: string; error: string }>;
+}> {
+  const res = await fetch("/api/cleanup/execute", { method: "POST" });
+  if (!res.ok) throw new Error(await parseApiError(res));
+  return res.json();
 }
 
 export async function fetchHealth(): Promise<{ ok: boolean; openclaw: boolean }> {

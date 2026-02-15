@@ -1,6 +1,23 @@
 import { describe, expect, test, vi, beforeEach } from 'vitest';
 import request from 'supertest';
 
+const activityEvents = [];
+vi.mock('../server/activity.js', () => ({
+  appendEvent: vi.fn((opts) => {
+    activityEvents.push({
+      id: String(activityEvents.length + 1),
+      type: opts.type,
+      teamId: opts.teamId,
+      ticketId: opts.ticketId,
+      message: opts.message,
+      timestamp: new Date().toISOString(),
+    });
+  }),
+  getRecentEvents: vi.fn((limit = 50) =>
+    [...activityEvents].reverse().slice(0, typeof limit === 'number' ? Math.min(limit, 200) : 50)
+  ),
+}));
+
 vi.mock('../server/openclaw.js', () => ({
   checkOpenClaw: vi.fn(),
   listTeams: vi.fn(),
@@ -12,6 +29,10 @@ vi.mock('../server/openclaw.js', () => ({
   showRecipe: vi.fn(),
   recipeStatus: vi.fn(),
   scaffoldTeam: vi.fn(),
+  scaffoldAgent: vi.fn(),
+  planCleanup: vi.fn(),
+  executeCleanup: vi.fn(),
+  installRecipeSkills: vi.fn(),
   moveTicket: vi.fn(),
   assignTicket: vi.fn(),
   takeTicket: vi.fn(),
@@ -26,8 +47,17 @@ vi.mock('../server/openclaw.js', () => ({
 
 import { createApp } from '../server/index.js';
 import * as openclaw from '../server/openclaw.js';
+import * as activity from '../server/activity.js';
 
 const app = createApp();
+
+function clearActivityEvents() {
+  activityEvents.length = 0;
+}
+
+beforeEach(() => {
+  clearActivityEvents();
+});
 
 describe('Kitchen API (openclaw-dependent routes)', () => {
   beforeEach(() => {
@@ -172,6 +202,247 @@ describe('Kitchen API (openclaw-dependent routes)', () => {
     const res = await request(app).get('/api/recipes/nonexistent/status').expect(404);
     expect(res.body).toHaveProperty('error', 'Recipe not found');
   });
+
+  test('GET /api/recipes/:id/status returns 200 when recipeStatus returns single object', async () => {
+    vi.mocked(openclaw.recipeStatus).mockReturnValue({
+      id: 'dev-team',
+      requiredSkills: ['a'],
+      missingSkills: [],
+      installCommands: [],
+    });
+
+    const res = await request(app).get('/api/recipes/dev-team/status').expect(200);
+    expect(res.body).toHaveProperty('id', 'dev-team');
+    expect(res.body).toHaveProperty('missingSkills');
+  });
+
+  test('GET /api/activity returns 200 with array', async () => {
+    const res = await request(app).get('/api/activity').expect(200);
+    expect(Array.isArray(res.body)).toBe(true);
+  });
+
+  test('GET /api/activity respects limit query param', async () => {
+    const res = await request(app).get('/api/activity?limit=10').expect(200);
+    expect(Array.isArray(res.body)).toBe(true);
+    expect(res.body.length).toBeLessThanOrEqual(10);
+  });
+
+  test('GET /api/activity returns events after successful move', async () => {
+    vi.mocked(openclaw.moveTicket).mockImplementation(() => {});
+
+    await request(app)
+      .post('/api/teams/my-team/tickets/0001/move')
+      .send({ to: 'in-progress' })
+      .expect(200);
+
+    const res = await request(app).get('/api/activity').expect(200);
+    expect(Array.isArray(res.body)).toBe(true);
+    expect(res.body.length).toBeGreaterThanOrEqual(1);
+    expect(res.body[0]).toHaveProperty('type', 'move');
+    expect(res.body[0]).toHaveProperty('message');
+    expect(res.body[0].message).toContain('in-progress');
+  });
+
+  test('GET /api/activity returns 500 when getRecentEvents throws', async () => {
+    vi.mocked(activity.getRecentEvents).mockImplementationOnce(() => {
+      throw new Error('Activity store error');
+    });
+    const res = await request(app).get('/api/activity').expect(500);
+    expect(res.body).toHaveProperty('error');
+    expect(res.body.error).toMatch(/Activity store error/);
+  });
+});
+
+describe('scaffold-agent API', () => {
+  beforeEach(() => {
+    vi.mocked(openclaw.checkOpenClaw).mockResolvedValue(true);
+    vi.mocked(openclaw.scaffoldAgent).mockImplementation(() => {});
+  });
+
+  test('POST /api/recipes/:id/scaffold-agent returns 200 when valid', async () => {
+    const res = await request(app)
+      .post('/api/recipes/project-manager/scaffold-agent')
+      .send({ agentId: 'pm' })
+      .expect(200);
+    expect(res.body).toEqual({ ok: true });
+    expect(openclaw.scaffoldAgent).toHaveBeenCalledWith('project-manager', 'pm', expect.objectContaining({ overwrite: false }));
+  });
+
+  test('POST /api/recipes/:id/scaffold-agent passes name and overwrite', async () => {
+    await request(app)
+      .post('/api/recipes/project-manager/scaffold-agent')
+      .send({ agentId: 'pm', name: 'Project Manager', overwrite: true })
+      .expect(200);
+    expect(openclaw.scaffoldAgent).toHaveBeenCalledWith('project-manager', 'pm', {
+      name: 'Project Manager',
+      overwrite: true,
+    });
+  });
+
+  test('POST /api/recipes/:id/scaffold-agent returns 400 when agentId missing', async () => {
+    const res = await request(app)
+      .post('/api/recipes/project-manager/scaffold-agent')
+      .send({})
+      .expect(400);
+    expect(res.body.error).toBe("Missing 'agentId'");
+  });
+
+  test('POST /api/recipes/:id/scaffold-agent returns 400 when agentId empty', async () => {
+    const res = await request(app)
+      .post('/api/recipes/project-manager/scaffold-agent')
+      .send({ agentId: '   ' })
+      .expect(400);
+    expect(res.body.error).toBe("Missing 'agentId'");
+  });
+
+  test('POST /api/recipes/:id/scaffold-agent returns 400 when scaffoldAgent throws', async () => {
+    vi.mocked(openclaw.scaffoldAgent).mockImplementation(() => {
+      throw new Error('Recipe not an agent recipe');
+    });
+
+    const res = await request(app)
+      .post('/api/recipes/project-manager/scaffold-agent')
+      .send({ agentId: 'pm' })
+      .expect(400);
+    expect(res.body).toHaveProperty('error');
+  });
+
+  test('POST /api/recipes/:id/scaffold-agent returns 400 for invalid agentId format', async () => {
+    vi.mocked(openclaw.scaffoldAgent).mockClear();
+    const res = await request(app)
+      .post('/api/recipes/project-manager/scaffold-agent')
+      .send({ agentId: 'bad id!' })
+      .expect(400);
+    expect(res.body.error).toMatch(/Invalid agentId format/);
+    expect(openclaw.scaffoldAgent).not.toHaveBeenCalled();
+  });
+});
+
+describe('recipes install API', () => {
+  beforeEach(() => {
+    vi.mocked(openclaw.checkOpenClaw).mockResolvedValue(true);
+    vi.mocked(openclaw.installRecipeSkills).mockResolvedValue({ ok: true, installed: ['foo'] });
+  });
+
+  test('POST /api/recipes/:id/install returns 200 with global scope', async () => {
+    const res = await request(app)
+      .post('/api/recipes/development-team/install')
+      .send({ scope: 'global' })
+      .expect(200);
+    expect(res.body).toHaveProperty('ok', true);
+    expect(res.body).toHaveProperty('installed');
+    expect(openclaw.installRecipeSkills).toHaveBeenCalledWith('development-team', { scope: 'global' });
+  });
+
+  test('POST /api/recipes/:id/install returns 200 with team scope', async () => {
+    await request(app)
+      .post('/api/recipes/development-team/install')
+      .send({ scope: 'team', teamId: 'my-team-team' })
+      .expect(200);
+    expect(openclaw.installRecipeSkills).toHaveBeenCalledWith('development-team', {
+      scope: 'team',
+      teamId: 'my-team-team',
+    });
+  });
+
+  test('POST /api/recipes/:id/install returns 400 when scope is team but teamId missing', async () => {
+    const res = await request(app)
+      .post('/api/recipes/dev/install')
+      .send({ scope: 'team' })
+      .expect(400);
+    expect(res.body.error).toMatch(/teamId/);
+  });
+
+  test('POST /api/recipes/:id/install returns 400 when scope is agent but agentId missing', async () => {
+    const res = await request(app)
+      .post('/api/recipes/dev/install')
+      .send({ scope: 'agent' })
+      .expect(400);
+    expect(res.body.error).toMatch(/agentId/);
+  });
+
+  test('POST /api/recipes/:id/install returns 400 when scope invalid', async () => {
+    const res = await request(app)
+      .post('/api/recipes/dev/install')
+      .send({ scope: 'invalid' })
+      .expect(400);
+    expect(res.body.error).toBe('Invalid scope');
+  });
+
+  test('POST /api/recipes/:id/install returns 400 when scope is team but teamId missing', async () => {
+    const res = await request(app)
+      .post('/api/recipes/dev/install')
+      .send({ scope: 'team' })
+      .expect(400);
+    expect(res.body.error).toMatch(/teamId required.*team scope/);
+  });
+
+  test('POST /api/recipes/:id/install returns 400 when scope is team but teamId does not end with -team', async () => {
+    const res = await request(app)
+      .post('/api/recipes/dev/install')
+      .send({ scope: 'team', teamId: 'myworkspace' })
+      .expect(400);
+    expect(res.body.error).toMatch(/teamId required.*-team/);
+  });
+});
+
+describe('cleanup API', () => {
+  beforeEach(() => {
+    vi.mocked(openclaw.checkOpenClaw).mockResolvedValue(true);
+    vi.mocked(openclaw.planCleanup).mockResolvedValue({
+      ok: true,
+      dryRun: true,
+      rootDir: '/tmp',
+      candidates: [{ teamId: 'smoke-001-team', absPath: '/tmp/workspace-smoke-001-team' }],
+      skipped: [],
+      deleted: [],
+    });
+    vi.mocked(openclaw.executeCleanup).mockResolvedValue({
+      ok: true,
+      dryRun: false,
+      rootDir: '/tmp',
+      candidates: [],
+      skipped: [],
+      deleted: ['/tmp/workspace-smoke-001-team'],
+    });
+  });
+
+  test('GET /api/cleanup/plan returns 200 with plan', async () => {
+    const res = await request(app).get('/api/cleanup/plan').expect(200);
+    expect(res.body).toHaveProperty('ok', true);
+    expect(res.body).toHaveProperty('dryRun', true);
+    expect(res.body).toHaveProperty('candidates');
+    expect(Array.isArray(res.body.candidates)).toBe(true);
+    expect(res.body.candidates[0]).toHaveProperty('teamId', 'smoke-001-team');
+  });
+
+  test('GET /api/cleanup/plan returns 503 when OpenClaw unavailable', async () => {
+    vi.mocked(openclaw.checkOpenClaw).mockResolvedValue(false);
+
+    const res = await request(app).get('/api/cleanup/plan').expect(503);
+    expect(res.body).toHaveProperty('openclaw', false);
+  });
+
+  test('GET /api/cleanup/plan returns 502 when planCleanup throws', async () => {
+    vi.mocked(openclaw.planCleanup).mockRejectedValue(new Error('Workspace not configured'));
+
+    const res = await request(app).get('/api/cleanup/plan').expect(502);
+    expect(res.body).toHaveProperty('error');
+  });
+
+  test('POST /api/cleanup/execute returns 200 with result', async () => {
+    const res = await request(app).post('/api/cleanup/execute').expect(200);
+    expect(res.body).toHaveProperty('ok', true);
+    expect(res.body).toHaveProperty('deleted');
+    expect(openclaw.executeCleanup).toHaveBeenCalled();
+  });
+
+  test('POST /api/cleanup/execute returns 502 when executeCleanup throws', async () => {
+    vi.mocked(openclaw.executeCleanup).mockRejectedValue(new Error('Delete failed'));
+
+    const res = await request(app).post('/api/cleanup/execute').expect(502);
+    expect(res.body).toHaveProperty('error');
+  });
 });
 
 describe('Bindings API', () => {
@@ -251,6 +522,14 @@ describe('Bindings API', () => {
       .expect(400);
     expect(res.body).toHaveProperty('error');
   });
+
+  test('DELETE /api/bindings returns 400 when match exists but channel missing', async () => {
+    const res = await request(app)
+      .delete('/api/bindings')
+      .send({ match: {} })
+      .expect(400);
+    expect(res.body.error).toMatch(/match.channel/);
+  });
 });
 
 describe('Teams API (remove)', () => {
@@ -289,6 +568,19 @@ describe('Teams API (remove)', () => {
     expect(res.body).toHaveProperty('error');
   });
 
+});
+
+describe('guardInvalidTeamId', () => {
+  beforeEach(() => {
+    vi.mocked(openclaw.checkOpenClaw).mockResolvedValue(true);
+    vi.mocked(openclaw.getTickets).mockResolvedValue({ teamId: 'x', tickets: [], backlog: [], inProgress: [], testing: [], done: [] });
+  });
+
+  test('GET /api/teams/bad..id/tickets returns 400 for invalid teamId format', async () => {
+    const res = await request(app).get('/api/teams/bad..id/tickets').expect(400);
+    expect(res.body.error).toBe('Invalid teamId format');
+    expect(openclaw.getTickets).not.toHaveBeenCalled();
+  });
 });
 
 describe('Non-demo team routes', () => {

@@ -47,6 +47,11 @@ body {
 
 /* Reduced motion - respect user preference */
 @media (prefers-reduced-motion: reduce) {
+  .activity-item-new {
+    animation: none;
+    background: rgba(var(--bs-primary-rgb), 0.08);
+  }
+
   .ticket-card-flash {
     animation: none;
   }
@@ -75,17 +80,25 @@ body {
 }
 
 .error-boundary-card {
-  max-width: 400px;
+  max-width: 420px;
+  box-shadow: 0 0.5rem 1rem rgba(0, 0, 0, 0.08);
+}
+
+[data-bs-theme="dark"] .error-boundary-card {
+  box-shadow: 0 0.5rem 1rem rgba(0, 0, 0, 0.3);
 }
 
 .kanban-column-card {
   border-left-width: 4px !important;
 }
 
-/* Gentle flash when ticket data refreshes */
+/* Gentle pulse when ticket data refreshes - subtle, non-jarring */
 @keyframes ticket-card-flash {
   0% {
-    box-shadow: 0 0 0 1px rgba(var(--bs-primary-rgb), 0.25);
+    box-shadow: 0 0 0 2px rgba(var(--bs-primary-rgb), 0.2);
+  }
+  50% {
+    box-shadow: 0 0 0 2px rgba(var(--bs-primary-rgb), 0.08);
   }
   100% {
     box-shadow: none;
@@ -93,7 +106,7 @@ body {
 }
 
 .ticket-card-flash {
-  animation: ticket-card-flash 0.5s ease-out both;
+  animation: ticket-card-flash 0.8s ease-out both;
 }
 
 /* Skeleton loading */
@@ -148,6 +161,27 @@ body {
   opacity: 0.5;
 }
 
+/* Shared empty state utility */
+.empty-state-icon {
+  width: 40px;
+  height: 40px;
+  opacity: 0.45;
+}
+
+/* Recipe card hover */
+.recipe-card {
+  cursor: pointer;
+}
+
+.recipe-card:hover {
+  border-color: var(--bs-primary);
+  box-shadow: 0 0.125rem 0.25rem rgba(0, 0, 0, 0.075);
+}
+
+[data-bs-theme="dark"] .recipe-card:hover {
+  box-shadow: 0 0.25rem 0.5rem rgba(0, 0, 0, 0.3);
+}
+
 /* Dark mode: Kanban cards with better elevation */
 [data-bs-theme="dark"] .kanban-column-card {
   background-color: var(--bs-secondary-bg);
@@ -168,6 +202,13 @@ body {
   background-color: rgba(255, 255, 255, 0.06);
 }
 
+/* Nav active state - clearer tab indicator */
+.nav-tabs .nav-link.active {
+  color: var(--bs-primary);
+  font-weight: 600;
+  border-bottom-color: var(--bs-primary);
+}
+
 /* Dark mode: Navbar - subtle elevation */
 [data-bs-theme="dark"] .navbar.bg-body-tertiary {
   background-color: var(--bs-secondary-bg) !important;
@@ -183,9 +224,12 @@ body {
   word-break: break-word;
 }
 
+.ticket-card-wrapper {
+  transition: opacity 0.2s ease, transform 0.15s ease, box-shadow 0.15s ease;
+}
+
 .ticket-card-clickable {
   cursor: pointer;
-  transition: transform 0.15s ease, box-shadow 0.15s ease;
 }
 
 .ticket-card-clickable:hover {
@@ -266,11 +310,51 @@ body {
 }
 
 .ticket-detail-markdown code,
-.recipe-detail-markdown code {
+.recipe-detail-markdown code,
+.inbox-detail-markdown code {
   padding: 2px 6px;
   background: var(--bs-tertiary-bg);
   border-radius: var(--bs-border-radius);
   font-size: 13px;
+}
+
+/* Inbox modal markdown - mirror ticket/recipe detail */
+.inbox-detail-markdown {
+  font-size: 14px;
+  line-height: 1.6;
+}
+
+.inbox-detail-markdown h1 {
+  font-size: 1.25em;
+  margin: 0 0 12px;
+}
+
+.inbox-detail-markdown h2 {
+  font-size: 1.1em;
+  margin: 16px 0 8px;
+}
+
+.inbox-detail-markdown h3 {
+  font-size: 1em;
+  margin: 12px 0 6px;
+}
+
+.inbox-detail-markdown p {
+  margin: 0 0 8px;
+}
+
+.inbox-detail-markdown ul,
+.inbox-detail-markdown ol {
+  margin: 0 0 8px;
+  padding-left: 1.5em;
+}
+
+.inbox-detail-markdown pre {
+  padding: 12px;
+  overflow-x: auto;
+  margin: 8px 0;
+  background: var(--bs-tertiary-bg);
+  border-radius: var(--bs-border-radius);
 }
 
 /* Code block syntax highlighting - dark mode overrides */
@@ -281,8 +365,14 @@ body {
 }
 
 [data-bs-theme="dark"] .ticket-detail-markdown .hljs,
-[data-bs-theme="dark"] .recipe-detail-markdown .hljs {
+[data-bs-theme="dark"] .recipe-detail-markdown .hljs,
+[data-bs-theme="dark"] .inbox-detail-markdown .hljs {
   background: var(--bs-tertiary-bg) !important;
+}
+
+[data-bs-theme="dark"] .inbox-detail-markdown pre code.hljs {
+  background: var(--bs-tertiary-bg);
+  color: var(--bs-body-color);
 }
 
 /* Dark mode: Modal and dropdown polish */
@@ -336,4 +426,120 @@ body {
 [data-bs-theme="dark"] .badge.bg-success {
   background-color: rgba(46, 160, 67, 0.4) !important;
   color: #3fb950;
+}
+
+/* Board page layout - fill viewport below navbar */
+.board-page-layout {
+  min-height: calc(100vh - 56px);
+  flex: 1;
+}
+
+.board-main {
+  min-height: 0;
+}
+
+/* Activity feed sidebar */
+.activity-feed-aside {
+  background: var(--bs-body-bg);
+  border-left: 1px solid var(--bs-border-color);
+  box-shadow: -4px 0 12px rgba(0, 0, 0, 0.04);
+}
+
+[data-bs-theme="dark"] .activity-feed-aside {
+  box-shadow: -4px 0 12px rgba(0, 0, 0, 0.2);
+}
+
+.activity-feed-toggle {
+  cursor: pointer;
+  width: 100%;
+  padding: 10px 12px;
+  background: var(--bs-tertiary-bg);
+  color: var(--bs-body-color);
+  font-size: 0.8rem;
+  font-weight: 600;
+  flex-shrink: 0;
+  transition: background 0.15s ease;
+}
+
+.activity-feed-toggle:hover {
+  background: var(--bs-secondary-bg);
+}
+
+.activity-feed-chevron {
+  flex-shrink: 0;
+  font-size: 0.65rem;
+  opacity: 0.7;
+  transition: transform 0.2s ease;
+}
+
+.activity-feed-title {
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.activity-list {
+  padding: 0;
+  min-height: 0; /* Allow flex child to shrink for overflow */
+}
+
+.activity-item {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: 10px 12px;
+  font-size: 0.8rem;
+  line-height: 1.35;
+  border-bottom: 1px solid var(--bs-border-color);
+  word-break: break-word;
+}
+
+.activity-item:last-child {
+  border-bottom: none;
+}
+
+.activity-item-time {
+  font-size: 0.7rem;
+  color: var(--bs-secondary-color);
+}
+
+.activity-item-message {
+  color: var(--bs-body-color);
+}
+
+/* Activity feed - slide-in animation for new events */
+@keyframes activity-item-slide {
+  0% {
+    opacity: 0;
+    transform: translateX(-8px);
+  }
+  100% {
+    opacity: 1;
+    transform: translateX(0);
+  }
+}
+
+.activity-item-new {
+  animation: activity-item-slide 0.4s ease-out both;
+  background: rgba(var(--bs-primary-rgb), 0.08);
+}
+
+[data-bs-theme="dark"] .activity-item-new {
+  background: rgba(var(--bs-primary-rgb), 0.15);
+}
+
+/* Responsive: collapse sidebar on smaller screens */
+@media (max-width: 991.98px) {
+  .activity-feed-aside {
+    position: fixed;
+    right: 0;
+    top: 56px;
+    bottom: 0;
+    z-index: 1020;
+    box-shadow: -8px 0 24px rgba(0, 0, 0, 0.12);
+  }
+
+  .activity-feed-aside[style*="width: 44px"] {
+    box-shadow: -4px 0 12px rgba(0, 0, 0, 0.08);
+  }
 }

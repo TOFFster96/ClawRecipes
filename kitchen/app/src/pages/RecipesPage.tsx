@@ -16,6 +16,8 @@ import {
   fetchRecipeStatus,
   fetchHealth,
   scaffoldRecipeTeam,
+  scaffoldRecipeAgent,
+  installRecipeSkills,
   type Recipe,
   type RecipeStatus,
 } from "../api";
@@ -65,7 +67,15 @@ export function RecipesPage() {
   const [scaffoldOverwrite, setScaffoldOverwrite] = useState(false);
   const [scaffoldLoading, setScaffoldLoading] = useState(false);
   const [scaffoldError, setScaffoldError] = useState<string | null>(null);
+  const [scaffoldAgentModalRecipe, setScaffoldAgentModalRecipe] = useState<Recipe | null>(null);
+  const [scaffoldAgentId, setScaffoldAgentId] = useState("");
+  const [scaffoldAgentName, setScaffoldAgentName] = useState("");
+  const [scaffoldAgentOverwrite, setScaffoldAgentOverwrite] = useState(false);
+  const [scaffoldAgentLoading, setScaffoldAgentLoading] = useState(false);
+  const [scaffoldAgentError, setScaffoldAgentError] = useState<string | null>(null);
   const [recipeStatusMap, setRecipeStatusMap] = useState<Record<string, RecipeStatus>>({});
+  const [installingRecipeId, setInstallingRecipeId] = useState<string | null>(null);
+  const [installError, setInstallError] = useState<string | null>(null);
 
   useEffect(() => {
     let cancelled = false;
@@ -161,6 +171,48 @@ export function RecipesPage() {
     }
   };
 
+  const handleInstallSkills = async (recipeId: string) => {
+    setInstallError(null);
+    setInstallingRecipeId(recipeId);
+    try {
+      const result = await installRecipeSkills(recipeId, { scope: "global" });
+      if (result.ok || (result.installed?.length ?? 0) > 0) {
+        const statusList = await fetchRecipeStatus(recipeId);
+        const updated = statusList[0];
+        if (updated) {
+          setRecipeStatusMap((prev) => ({ ...prev, [recipeId]: updated }));
+        }
+      }
+      if (!result.ok && result.errors?.length) {
+        setInstallError(result.errors.map((e) => `${e.skill}: ${e.error}`).join("; "));
+      }
+    } catch (e) {
+      setInstallError(String(e));
+    } finally {
+      setInstallingRecipeId(null);
+    }
+  };
+
+  const handleScaffoldAgent = async () => {
+    if (!scaffoldAgentModalRecipe || !scaffoldAgentId.trim()) return;
+    setScaffoldAgentError(null);
+    setScaffoldAgentLoading(true);
+    try {
+      await scaffoldRecipeAgent(scaffoldAgentModalRecipe.id, scaffoldAgentId.trim(), {
+        name: scaffoldAgentName.trim() || undefined,
+        overwrite: scaffoldAgentOverwrite,
+      });
+      setScaffoldAgentModalRecipe(null);
+      setScaffoldAgentId("");
+      setScaffoldAgentName("");
+      setScaffoldAgentOverwrite(false);
+    } catch (e) {
+      setScaffoldAgentError(String(e));
+    } finally {
+      setScaffoldAgentLoading(false);
+    }
+  };
+
   const teamRecipes = recipes.filter((r) => r.kind === "team" || !r.kind);
   const agentRecipes = recipes.filter((r) => r.kind === "agent");
   const otherRecipes = recipes.filter(
@@ -237,7 +289,15 @@ export function RecipesPage() {
     <Container fluid="lg" className="py-4">
       <h2 className="h5 mb-3">Recipes</h2>
       {recipes.length === 0 ? (
-        <p className="text-muted">No recipes found.</p>
+        <div className="card">
+          <div className="card-body text-center py-5">
+            <svg className="empty-state-icon mb-3 mx-auto d-block" viewBox="0 0 24 24" fill="currentColor" aria-hidden>
+              <path d="M9 2h6v2H9V2zm4 14h2v2h-2v-2zm-4 0h2v2H9v-2zm0-4h2v2H9v-2zm4 0h2v2h-2v-2zM5 4v16h14V4H5zm2 2h10v12H7V6z" />
+            </svg>
+            <h5 className="card-title mb-2">No recipes found</h5>
+            <p className="text-muted mb-0 small">Connect OpenClaw and scaffold a team to browse recipes.</p>
+          </div>
+        </div>
       ) : (
         <div className="row g-3">
           {teamRecipes.length > 0 && (
@@ -251,7 +311,6 @@ export function RecipesPage() {
                   <div key={r.id} className="col-12 col-md-6 col-lg-4">
                     <Card
                       className="h-100 recipe-card"
-                      style={{ cursor: "pointer" }}
                       onClick={() => setSelectedRecipe(r)}
                     >
                       <Card.Body className="py-2">
@@ -267,7 +326,7 @@ export function RecipesPage() {
                           )}
                         </div>
                         <small className="text-muted">{r.id} · {r.source}</small>
-                        <div className="mt-2">
+                        <div className="mt-2 d-flex flex-wrap gap-1">
                           <BsButton
                             variant="outline-primary"
                             size="sm"
@@ -280,6 +339,19 @@ export function RecipesPage() {
                           >
                             Scaffold team
                           </BsButton>
+                          {missingSkills.length > 0 && (
+                            <BsButton
+                              variant="outline-warning"
+                              size="sm"
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                handleInstallSkills(r.id);
+                              }}
+                              disabled={installingRecipeId === r.id}
+                            >
+                              {installingRecipeId === r.id ? "Installing…" : "Install skills"}
+                            </BsButton>
+                          )}
                         </div>
                       </Card.Body>
                     </Card>
@@ -297,12 +369,27 @@ export function RecipesPage() {
                   <div key={r.id} className="col-12 col-md-6 col-lg-4">
                     <Card
                       className="h-100 recipe-card"
-                      style={{ cursor: "pointer" }}
                       onClick={() => setSelectedRecipe(r)}
                     >
                       <Card.Body className="py-2">
                         <div className="fw-medium">{r.name ?? r.id}</div>
                         <small className="text-muted">{r.id} · {r.source}</small>
+                        <div className="mt-2">
+                          <BsButton
+                            variant="outline-primary"
+                            size="sm"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              setScaffoldAgentModalRecipe(r);
+                              setScaffoldAgentId("");
+                              setScaffoldAgentName("");
+                              setScaffoldAgentOverwrite(false);
+                              setScaffoldAgentError(null);
+                            }}
+                          >
+                            Scaffold agent
+                          </BsButton>
+                        </div>
                       </Card.Body>
                     </Card>
                   </div>
@@ -318,7 +405,6 @@ export function RecipesPage() {
                   <div key={r.id} className="col-12 col-md-6 col-lg-4">
                     <Card
                       className="h-100 recipe-card"
-                      style={{ cursor: "pointer" }}
                       onClick={() => setSelectedRecipe(r)}
                     >
                       <Card.Body className="py-2">
@@ -336,7 +422,7 @@ export function RecipesPage() {
 
       <Modal
         show={!!selectedRecipe}
-        onHide={() => setSelectedRecipe(null)}
+        onHide={() => { setSelectedRecipe(null); setInstallError(null); }}
         size="lg"
         scrollable
       >
@@ -364,10 +450,25 @@ export function RecipesPage() {
                   </BsButton>
                 </div>
               )}
+              {installError && (
+                <div className="alert alert-danger py-2 mb-3" role="alert">
+                  {installError}
+                </div>
+              )}
               {recipeStatusMap[selectedRecipe.id]?.missingSkills?.length > 0 && (
                 <div className="alert alert-warning py-2 mb-3" role="alert">
                   <strong>Missing skills:</strong>{" "}
                   {recipeStatusMap[selectedRecipe.id].missingSkills.join(", ")}
+                  <div className="mt-2">
+                    <BsButton
+                      variant="warning"
+                      size="sm"
+                      onClick={() => handleInstallSkills(selectedRecipe.id)}
+                      disabled={installingRecipeId === selectedRecipe.id}
+                    >
+                      {installingRecipeId === selectedRecipe.id ? "Installing…" : "Install skills"}
+                    </BsButton>
+                  </div>
                   {recipeStatusMap[selectedRecipe.id].installCommands.length > 0 && (
                     <pre className="mt-2 mb-0 small bg-dark text-light p-2 rounded">
                       {recipeStatusMap[selectedRecipe.id].installCommands.join("\n")}
@@ -390,6 +491,23 @@ export function RecipesPage() {
                     }}
                   >
                     Scaffold team
+                  </BsButton>
+                </div>
+              )}
+              {selectedRecipe.kind === "agent" && recipeMd && !recipeError && (
+                <div className="mt-3">
+                  <BsButton
+                    variant="primary"
+                    size="sm"
+                    onClick={() => {
+                      setScaffoldAgentModalRecipe(selectedRecipe);
+                      setScaffoldAgentId("");
+                      setScaffoldAgentName("");
+                      setScaffoldAgentOverwrite(false);
+                      setScaffoldAgentError(null);
+                    }}
+                  >
+                    Scaffold agent
                   </BsButton>
                 </div>
               )}
@@ -445,6 +563,65 @@ export function RecipesPage() {
                 }
               >
                 {scaffoldLoading ? "Scaffolding…" : "Scaffold"}
+              </BsButton>
+            </Modal.Footer>
+          </>
+        )}
+      </Modal>
+
+      <Modal
+        show={!!scaffoldAgentModalRecipe}
+        onHide={() => !scaffoldAgentLoading && setScaffoldAgentModalRecipe(null)}
+      >
+        {scaffoldAgentModalRecipe && (
+          <>
+            <Modal.Header closeButton>
+              <Modal.Title>Scaffold agent</Modal.Title>
+            </Modal.Header>
+            <Modal.Body>
+              <p className="text-muted small">
+                Scaffold <strong>{scaffoldAgentModalRecipe.name ?? scaffoldAgentModalRecipe.id}</strong> as
+                a standalone agent workspace.
+              </p>
+              {scaffoldAgentError && <div className="alert alert-danger" role="alert">{scaffoldAgentError}</div>}
+              <Form.Group className="mb-2">
+                <Form.Label>Agent ID</Form.Label>
+                <Form.Control
+                  type="text"
+                  value={scaffoldAgentId}
+                  onChange={(e) => setScaffoldAgentId(e.target.value)}
+                  placeholder="e.g. pm"
+                  disabled={scaffoldAgentLoading}
+                />
+              </Form.Group>
+              <Form.Group className="mb-2">
+                <Form.Label>Name (optional)</Form.Label>
+                <Form.Control
+                  type="text"
+                  value={scaffoldAgentName}
+                  onChange={(e) => setScaffoldAgentName(e.target.value)}
+                  placeholder="e.g. Project Manager"
+                  disabled={scaffoldAgentLoading}
+                />
+              </Form.Group>
+              <Form.Check
+                type="checkbox"
+                label="Overwrite existing files"
+                checked={scaffoldAgentOverwrite}
+                onChange={(e) => setScaffoldAgentOverwrite(e.target.checked)}
+                disabled={scaffoldAgentLoading}
+              />
+            </Modal.Body>
+            <Modal.Footer>
+              <BsButton variant="secondary" onClick={() => setScaffoldAgentModalRecipe(null)} disabled={scaffoldAgentLoading}>
+                Cancel
+              </BsButton>
+              <BsButton
+                variant="primary"
+                onClick={handleScaffoldAgent}
+                disabled={scaffoldAgentLoading || !scaffoldAgentId.trim()}
+              >
+                {scaffoldAgentLoading ? "Scaffolding…" : "Scaffold"}
               </BsButton>
             </Modal.Footer>
           </>

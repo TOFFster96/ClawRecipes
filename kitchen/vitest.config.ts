@@ -26,6 +26,12 @@ export default defineConfig({
   coverage: {
     provider: 'v8',
     include: ['server/**', 'app/src/**'],
-    exclude: ['**/*.test.*', 'app/dist/**'],
+    exclude: [
+      '**/*.test.*',
+      'app/dist/**',
+      'server/openclaw.js',
+      '**/scripts/**',
+    ],
+    excludeAfterRemap: true,
   },
 });

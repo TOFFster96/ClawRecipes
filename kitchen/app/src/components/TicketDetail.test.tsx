@@ -66,6 +66,16 @@ describe('TicketDetail', () => {
     expect(await screen.findByText(/Body/)).toBeInTheDocument();
   });
 
+  test('displays ticket metadata when content has key: value lines', async () => {
+    vi.mocked(api.fetchTicketContent).mockResolvedValue(
+      '# Setup CI\nCreated: 2024-01-01\nOwner: dev\nStatus: backlog\n\nBody text'
+    );
+    render(<TicketDetail ticket={ticket()} teamId="my-team" onClose={() => {}} />);
+    expect(await screen.findByText('dev')).toBeInTheDocument();
+    expect(screen.getByText('2024-01-01')).toBeInTheDocument();
+    expect(screen.getByText('backlog')).toBeInTheDocument();
+  });
+
   test('displays owner badge when present', async () => {
     render(<TicketDetail ticket={ticket({ owner: 'dev' })} teamId="my-team" onClose={() => {}} />);
     expect(await screen.findByText('dev')).toBeInTheDocument();
@@ -189,6 +199,26 @@ describe('TicketDetail', () => {
     expect(await screen.findByText('Body')).toBeInTheDocument();
     await user.click(screen.getByRole('button', { name: 'Complete' }));
     expect(await screen.findByText(/Ticket not ready/)).toBeInTheDocument();
+  });
+
+  test('shows action error when assignTicket throws', async () => {
+    vi.mocked(api.assignTicket).mockRejectedValue(new Error('Owner not in team'));
+    const user = userEvent.setup();
+    render(<TicketDetail ticket={ticket()} teamId="my-team" onClose={() => {}} />);
+    expect(await screen.findByText('Body')).toBeInTheDocument();
+    await user.click(screen.getByRole('button', { name: 'Assign' }));
+    await user.click(screen.getByText('Assign to dev'));
+    expect(await screen.findByText(/Owner not in team/)).toBeInTheDocument();
+  });
+
+  test('shows action error when moveTicket throws', async () => {
+    vi.mocked(api.moveTicket).mockRejectedValue(new Error('Invalid stage'));
+    const user = userEvent.setup();
+    render(<TicketDetail ticket={ticket()} teamId="my-team" onClose={() => {}} />);
+    expect(await screen.findByText('Body')).toBeInTheDocument();
+    await user.click(screen.getByRole('button', { name: 'Move to...' }));
+    await user.click(screen.getByText('In Progress'));
+    expect(await screen.findByText(/Invalid stage/)).toBeInTheDocument();
   });
 
   test('calls onClose when modal close clicked', async () => {

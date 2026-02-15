@@ -5,8 +5,8 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "test": "vitest run",
-    "test:coverage": "vitest run --coverage",
+    "test": "node node_modules/vitest/vitest.mjs run",
+    "test:coverage": "node node_modules/vitest/vitest.mjs run --coverage",
     "coverage:gaps": "npm run test:coverage && node scripts/coverage-gaps.js",
     "start": "node server/index.js",
     "prod": "npm run build && NODE_ENV=production node server/index.js",

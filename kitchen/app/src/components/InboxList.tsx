@@ -81,7 +81,10 @@ export function InboxList({ teamId }: Props) {
 
   if (items.length === 0) {
     return (
-      <div className="text-center py-4 text-muted">
+      <div className="text-center py-5">
+        <svg className="empty-state-icon mb-2 mx-auto d-block" viewBox="0 0 24 24" fill="currentColor" aria-hidden>
+          <path d="M20 4H4c-1.1 0-2 .9-2 2v12c0 1.1.9 2 2 2h16c1.1 0 2-.9 2-2V6c0-1.1-.9-2-2-2zm-2 4l-8 5-8-5V6l8 5 8-5v2z" />
+        </svg>
         <p className="mb-0">No inbox items yet</p>
       </div>
     );

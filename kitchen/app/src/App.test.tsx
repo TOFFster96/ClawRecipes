@@ -7,11 +7,33 @@ import { DemoProvider } from './DemoContext';
 import { Layout } from './components/Layout';
 import BoardPage from './pages/BoardPage';
 import RecipesPage from './pages/RecipesPage';
+import App from './App';
 
-vi.mock('./pages/BoardPage', () => ({ default: () => <div>BoardPage</div> }));
-vi.mock('./pages/RecipesPage', () => ({ default: () => <div>RecipesPage</div> }));
+vi.mock('./pages/BoardPage', () => {
+  const C = () => <div>BoardPage</div>;
+  return { BoardPage: C, default: C };
+});
+vi.mock('./pages/RecipesPage', () => {
+  const C = () => <div>RecipesPage</div>;
+  return { RecipesPage: C, default: C };
+});
+vi.mock('./pages/BindingsPage', () => {
+  const C = () => <div>BindingsPage</div>;
+  return { BindingsPage: C, default: C };
+});
 
 afterEach(() => cleanup());
+
+describe('App', () => {
+  test('renders App component', () => {
+    render(
+      <ThemeProvider>
+        <App />
+      </ThemeProvider>
+    );
+    expect(screen.getByText('BoardPage')).toBeInTheDocument();
+  });
+});
 
 describe('App routes', () => {
   test('renders BoardPage at /board', () => {

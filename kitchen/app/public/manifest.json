@@ -1,0 +1,13 @@
+{
+  "name": "ClawRecipes Kitchen",
+  "short_name": "Kitchen",
+  "description": "UI for managing ClawRecipes workflows — team dashboards, recipes, bindings",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#0f1419",
+  "theme_color": "#0d9488",
+  "icons": [
+    { "src": "/favicon-32x32.png", "sizes": "32x32", "type": "image/png" },
+    { "src": "/apple-touch-icon.png", "sizes": "180x180", "type": "image/png", "purpose": "any" }
+  ]
+}

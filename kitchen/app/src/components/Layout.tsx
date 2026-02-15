@@ -23,7 +23,10 @@ export function Layout() {
       </a>
       <Navbar expand="md" className="border-bottom bg-body-tertiary">
         <Container fluid="lg">
-          <Navbar.Brand className="fw-semibold">ClawRecipes Kitchen</Navbar.Brand>
+          <Navbar.Brand className="fw-semibold text-body d-flex align-items-center gap-2" style={{ letterSpacing: "0.02em" }}>
+            <img src="/favicon-32x32.png?v=2" alt="" width={28} height={28} className="navbar-brand-icon rounded" />
+            ClawRecipes Kitchen
+          </Navbar.Brand>
           <Navbar.Toggle aria-controls="kitchen-navbar" />
           <Navbar.Collapse id="kitchen-navbar">
             <Nav className="me-auto">

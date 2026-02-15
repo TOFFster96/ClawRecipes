@@ -18,7 +18,7 @@ export function TicketCard({ ticket, onSelect, dataVersion = 0, teamId, demoMode
   useEffect(() => {
     if (dataVersion === 0) return;
     setFlash(true);
-    const id = setTimeout(() => setFlash(false), 500);
+    const id = setTimeout(() => setFlash(false), 800);
     return () => clearTimeout(id);
   }, [dataVersion]);
 
@@ -62,10 +62,12 @@ export function TicketCard({ ticket, onSelect, dataVersion = 0, teamId, demoMode
             <Dropdown.Toggle
               variant="link"
               size="sm"
-              className="p-0 text-muted ticket-card-menu-btn"
+              className="p-0 text-muted ticket-card-menu-btn d-flex align-items-center"
               title="Move ticket"
             >
-              &#8942;
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor" aria-hidden>
+                <path d="M12 8c1.1 0 2-.9 2-2s-.9-2-2-2-2 .9-2 2 .9 2 2 2zm0 2c-1.1 0-2 .9-2 2s.9 2 2 2 2-.9 2-2-.9-2-2-2zm0 6c-1.1 0-2 .9-2 2s.9 2 2 2 2-.9 2-2-.9-2-2-2z" />
+              </svg>
             </Dropdown.Toggle>
             <Dropdown.Menu>
               {otherStages.map(({ key, label }) => (

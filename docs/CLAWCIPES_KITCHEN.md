@@ -9,7 +9,6 @@ ClawRecipes Kitchen is our UI for managing ClawRecipes workflows.
 - Global search across workspace + memory/docs + tasks
 - Agent chat room
 - Goals system (file-based source of truth)
-- Approvals inbox + routing (e.g., Telegram)
 
 ## Status
 ClawRecipes Kitchen is under active development. Team dashboards are available.
@@ -60,21 +59,17 @@ Then open http://localhost:3456. The API and built frontend are served from the 
 
 - `GET /api/teams` — List teams
 - `GET /api/teams/:teamId/tickets` — List tickets for a team (with titles from markdown)
-
-Ticket cards show an "Open" button to open the ticket file in VS Code (`vscode://file/...`). This works when the browser allows the custom URL scheme; Cursor and VS Code will handle the open request.
-
-**Demo mode** creates real ticket files under `kitchen/demo-data/workspace-demo-team/` on first load, so "Open" works for demo tickets too.
 - `GET /api/health` — Returns `{ ok: true, openclaw: boolean }` for monitoring
+
+**Demo mode** creates real ticket files under `kitchen/demo-data/workspace-demo-team/` on first load.
 
 ## Relationship to the plugin
 - The **ClawRecipes plugin** is CLI-first and works without any UI.
 - ClawRecipes Kitchen is an optional UI companion for:
   - visibility (activity/search)
-  - approvals
   - human review of plans and changes
 
 ## Roadmap (high level)
-- Approvals UI (approve/deny + audit trail)
 - Recipe browser and scaffold flows
 - Team dashboards (backlog/in-progress/testing/done) — **implemented**
 - Publishing workflow integration

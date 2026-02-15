@@ -14,6 +14,7 @@ vi.mock('../api', () => ({
   fetchInbox: vi.fn().mockResolvedValue([]),
   fetchInboxContent: vi.fn().mockResolvedValue(''),
   fetchTicketContent: vi.fn().mockResolvedValue('# Content'),
+  fetchActivity: vi.fn().mockResolvedValue([]),
   moveTicket: vi.fn(),
   dispatchTicket: vi.fn().mockResolvedValue(undefined),
   removeTeam: vi.fn(),
