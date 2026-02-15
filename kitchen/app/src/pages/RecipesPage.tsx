@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import ReactMarkdown from "react-markdown";
+import rehypeSanitize from "rehype-sanitize";
 import rehypeHighlight from "rehype-highlight";
 import {
   Card,
@@ -37,7 +38,7 @@ function RecipeContent({ md }: { md: string }) {
     <>
       {body && (
         <div className="recipe-detail-markdown mb-3">
-          <ReactMarkdown rehypePlugins={[rehypeHighlight]}>{body}</ReactMarkdown>
+          <ReactMarkdown rehypePlugins={[rehypeSanitize, rehypeHighlight]}>{body}</ReactMarkdown>
         </div>
       )}
       {frontmatter && (

@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import ReactMarkdown from "react-markdown";
 import rehypeHighlight from "rehype-highlight";
+import rehypeSanitize from "rehype-sanitize";
 import { Button, Dropdown, Modal } from "react-bootstrap";
 
 const METADATA_KEYS = ["Created", "Owner", "Status", "Inbox", "Assignment"];
@@ -48,7 +49,7 @@ function TicketContent({ content }: { content: string }) {
         </div>
       )}
       <div className="ticket-detail-markdown">
-        <ReactMarkdown rehypePlugins={[rehypeHighlight]}>{body}</ReactMarkdown>
+        <ReactMarkdown rehypePlugins={[rehypeSanitize, rehypeHighlight]}>{body}</ReactMarkdown>
       </div>
     </>
   );

@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import ReactMarkdown from "react-markdown";
 import rehypeHighlight from "rehype-highlight";
+import rehypeSanitize from "rehype-sanitize";
 import { Button, ListGroup, Modal, Spinner } from "react-bootstrap";
 import { fetchInbox, fetchInboxContent, type InboxItem } from "../api";
 
@@ -146,7 +147,7 @@ export function InboxList({ teamId }: Props) {
               )}
               {content && !contentLoading && !contentError && (
                 <div className="inbox-detail-markdown">
-                  <ReactMarkdown rehypePlugins={[rehypeHighlight]}>
+                  <ReactMarkdown rehypePlugins={[rehypeSanitize, rehypeHighlight]}>
                     {content}
                   </ReactMarkdown>
                 </div>

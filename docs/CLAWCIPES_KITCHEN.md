@@ -50,7 +50,13 @@ Then open http://localhost:3456. The API and built frontend are served from the 
 
 ClawRecipes Kitchen has **no built-in authentication**. It is intended for local use (e.g. `localhost:3456`). When exposed on a network, use a firewall, VPN, or a reverse proxy with authentication. See [SECURITY.md](../SECURITY.md) for reporting vulnerabilities.
 
-**Production mode** (`NODE_ENV=production`): Rate limiting (100 requests/minute per IP, `/api/health` exempt) and Content-Security-Policy headers are applied. Destructive operations (`POST /api/cleanup/execute`, `DELETE /api/teams/:teamId`) require the `X-Confirm-Destructive: true` header. When behind a reverse proxy, ensure only authorized users can call them.
+**Production mode** (`NODE_ENV=production`): Rate limiting (100 requests/minute per IP, `/api/health` exempt) and Content-Security-Policy headers are applied. Destructive operations require explicit confirmation (see below). When behind a reverse proxy, ensure only authorized users can call privileged endpoints.
+
+**Production API requirements:** When `NODE_ENV=production`, the following endpoints require the header `X-Confirm-Destructive: true`; otherwise they return 403:
+- `POST /api/cleanup/execute` — Execute workspace cleanup
+- `DELETE /api/teams/:teamId` — Remove a scaffolded team
+
+Example: `curl -X DELETE -H "X-Confirm-Destructive: true" http://localhost:3456/api/teams/my-team-team`
 
 ## Environment variables
 

@@ -5,7 +5,9 @@
   "main": "index.ts",
   "type": "commonjs",
   "openclaw": {
-    "extensions": ["./index.ts"]
+    "extensions": [
+      "./index.ts"
+    ]
   },
   "publishConfig": {
     "access": "public"
@@ -28,7 +30,8 @@
     "scaffold:smoke": "node scripts/scaffold-smoke.mjs",
     "kitchen": "cd kitchen && npm run dev",
     "kitchen:prod": "cd kitchen && npm run prod",
-    "audit": "npm audit --audit-level=high && cd kitchen && npm audit --audit-level=high"
+    "audit": "npm audit --audit-level=high && cd kitchen && npm audit --audit-level=high",
+    "prepare": "husky"
   },
   "keywords": [
     "openclaw",
@@ -44,6 +47,11 @@
     "yaml": "^2.8.2"
   },
   "devDependencies": {
+    "husky": "^9.1.7",
+    "lint-staged": "^16.2.7",
     "vitest": "^3.2.4"
+  },
+  "lint-staged": {
+    "kitchen/**": "bash -c 'cd kitchen && npm run test'"
   }
 }
