@@ -2092,7 +2092,10 @@ const recipesPlugin = {
           .argument("<recipeId>", "Recipe id")
           .requiredOption("--agent-id <id>", "Agent id")
           .option("--name <name>", "Agent display name")
+          .option("--recipe-id <recipeId>", "Workspace recipe id to write (default: <agentId>)")
           .option("--overwrite", "Overwrite existing recipe-managed files")
+          .option("--overwrite-recipe", "Overwrite the generated workspace recipe file (workspace/recipes/<agentId>.md) if it already exists")
+          .option("--auto-increment", "If the workspace recipe id is taken, pick the next available <agentId>-2/-3/...")
           .option("--apply-config", "Write the agent into openclaw config (agents.list)")
           .action(async (recipeId: string, options: any) => {
             const loaded = await loadRecipeById(api, recipeId);
@@ -2113,19 +2116,86 @@ const recipesPlugin = {
               return;
             }
 
+            const agentId = String(options.agentId);
             const baseWorkspace = api.config.agents?.defaults?.workspace ?? "~/.openclaw/workspace";
             // Put standalone agent workspaces alongside the default workspace (same parent dir).
-            const resolvedWorkspaceRoot = path.resolve(baseWorkspace, "..", `workspace-${options.agentId}`);
+            const resolvedWorkspaceRoot = path.resolve(baseWorkspace, "..", `workspace-${agentId}`);
+
+            // Also create a workspace recipe file for this installed agent.
+            // This establishes a stable, editable recipe id that matches the agent id (no custom- prefix).
+            const recipesDir = path.join(workspaceRoot, "recipes");
+            await ensureDir(recipesDir);
+
+            const overwriteRecipe = !!options.overwriteRecipe;
+            const autoIncrement = !!options.autoIncrement;
+
+            function suggestedRecipeIds(baseId: string) {
+              return [`${baseId}-2`, `${baseId}-3`, `${baseId}-4`];
+            }
+
+            async function recipeIdTaken(id: string) {
+              const filePath = path.join(recipesDir, `${id}.md`);
+              if (await fileExists(filePath)) return true;
+              try {
+                await loadRecipeById(api, id);
+                return true;
+              } catch {
+                return false;
+              }
+            }
+
+            async function pickRecipeId(baseId: string) {
+              if (!(await recipeIdTaken(baseId))) return baseId;
+              if (overwriteRecipe) {
+                const basePath = path.join(recipesDir, `${baseId}.md`);
+                if (!(await fileExists(basePath))) {
+                  throw new Error(
+                    `Recipe id is already taken by a non-workspace recipe: ${baseId}. Choose a different id (e.g. ${baseId}-2) or pass --auto-increment.`,
+                  );
+                }
+                return baseId;
+              }
+
+              if (autoIncrement) {
+                let n = 2;
+                while (n < 1000) {
+                  const candidate = `${baseId}-${n}`;
+                  if (!(await recipeIdTaken(candidate))) return candidate;
+                  n += 1;
+                }
+                throw new Error(`No available recipe id found for ${baseId} (tried up to -999)`);
+              }
+
+              const suggestions = suggestedRecipeIds(baseId);
+              const msg = [
+                `Recipe id already exists: ${baseId}`,
+                `Refusing to overwrite workspace recipe: recipes/${baseId}.md`,
+                `Pick a different recipe id and re-run with --recipe-id. Suggestions: ${suggestions.join(", ")}`,
+                ...suggestions.map((s) => `  openclaw recipes scaffold ${recipeId} --agent-id ${agentId} --recipe-id ${s}`),
+                `Or re-run with --auto-increment to pick ${baseId}-2/-3/... automatically, or pass --overwrite-recipe to overwrite the existing workspace recipe file.`,
+              ].join("\n");
+              throw new Error(msg);
+            }
+
+            const explicitRecipeId = typeof options.recipeId === "string" ? String(options.recipeId).trim() : "";
+            const baseRecipeId = explicitRecipeId || agentId;
+            const workspaceRecipeId = await pickRecipeId(baseRecipeId);
+
+            const recipeFilePath = path.join(recipesDir, `${workspaceRecipeId}.md`);
+            const parsed = parseFrontmatter(loaded.md);
+            const fm = { ...parsed.frontmatter, id: workspaceRecipeId, name: parsed.frontmatter.name ?? recipe.name ?? workspaceRecipeId };
+            const nextMd = `---\n${YAML.stringify(fm)}---\n${parsed.body}`;
+            await writeFileSafely(recipeFilePath, nextMd, overwriteRecipe ? "overwrite" : "createOnly");
 
             const result = await scaffoldAgentFromRecipe(api, recipe, {
-              agentId: options.agentId,
+              agentId,
               agentName: options.name,
               update: !!options.overwrite,
               filesRootDir: resolvedWorkspaceRoot,
               workspaceRootDir: resolvedWorkspaceRoot,
               vars: {
-                agentId: options.agentId,
-                agentName: options.name ?? recipe.name ?? options.agentId,
+                agentId,
+                agentName: options.name ?? recipe.name ?? agentId,
               },
             });
 
