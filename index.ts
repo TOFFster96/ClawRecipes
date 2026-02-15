@@ -2125,6 +2125,15 @@ const recipesPlugin = {
           });
 
         cmd
+          .command("kitchen")
+          .description("Launch ClawRecipes Kitchen (prints command to run)")
+          .action(() => {
+            console.error("To launch ClawRecipes Kitchen, run:\n");
+            console.error("  npx -p @jiggai/recipes clawrecipes-kitchen\n");
+            console.error("Or from this repo: npm run kitchen:prod");
+          });
+
+        cmd
           .command("scaffold")
           .description("Scaffold an agent from a recipe")
           .argument("<recipeId>", "Recipe id")

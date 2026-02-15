@@ -190,6 +190,13 @@ openclaw recipes cleanup-workspaces --prefix smoke- --prefix qa- --yes
 openclaw recipes cleanup-workspaces --json
 ```
 
+## `kitchen`
+Print the command to launch ClawRecipes Kitchen (optional UI for team dashboards, activity feed, recipes). Then run the printed command (e.g. `npx -p @jiggai/recipes clawrecipes-kitchen`).
+
+```bash
+openclaw recipes kitchen
+```
+
 ## `move-ticket`
 Move a ticket file between workflow stages and update the ticket’s `Status:` field.
 

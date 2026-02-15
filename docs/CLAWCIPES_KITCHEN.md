@@ -15,6 +15,22 @@ ClawRecipes Kitchen is under active development. Team dashboards are available.
 
 ## How to run
 
+### Launch from OpenClaw
+
+From the plugin:
+
+```bash
+openclaw recipes kitchen
+```
+
+This prints the command to run. Then:
+
+```bash
+npx -p @jiggai/recipes clawrecipes-kitchen
+```
+
+### From the ClawRecipes repo root
+
 **Prerequisites:**
 - `openclaw` on `PATH`
 - ClawRecipes plugin installed (`openclaw plugins add ./ClawRecipes`)

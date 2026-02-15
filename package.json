@@ -4,6 +4,9 @@
   "description": "ClawRecipes plugin for OpenClaw (markdown recipes -> scaffold agents/teams)",
   "main": "index.ts",
   "type": "commonjs",
+  "bin": {
+    "clawrecipes-kitchen": "./scripts/run-kitchen.mjs"
+  },
   "openclaw": {
     "extensions": [
       "./index.ts"
@@ -18,6 +21,8 @@
     "openclaw.plugin.json",
     "recipes/",
     "docs/",
+    "scripts/",
+    "kitchen/",
     "clawcipes_cook.jpg",
     "README.md"
   ],
