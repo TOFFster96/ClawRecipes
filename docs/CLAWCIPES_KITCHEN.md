@@ -2,7 +2,7 @@
 
 ClawRecipes Kitchen is our UI for managing ClawRecipes workflows.
 
-## What it’s for
+## What it's for
 - **Team dashboards** — backlog / in progress / testing / done (Kanban)
 - Activity feed (high-level semantic events)
 - Weekly scheduled-task view
@@ -46,20 +46,57 @@ npm run prod
 
 Then open http://localhost:3456. The API and built frontend are served from the same process; no hot reload.
 
+## Security
+
+ClawRecipes Kitchen has **no built-in authentication**. It is intended for local use (e.g. `localhost:3456`). When exposed on a network, use a firewall, VPN, or a reverse proxy with authentication. See [SECURITY.md](../SECURITY.md) for reporting vulnerabilities.
+
+**Production mode** (`NODE_ENV=production`): Rate limiting (100 requests/minute per IP, `/api/health` exempt) and Content-Security-Policy headers are applied. Destructive operations (`POST /api/cleanup/execute`, `DELETE /api/teams/:teamId`) require the `X-Confirm-Destructive: true` header. When behind a reverse proxy, ensure only authorized users can call them.
+
 ## Environment variables
 
 | Variable | Default | Description |
 |----------|---------|-------------|
 | `PORT` | 3456 | HTTP port for the Kitchen server |
 | `OPENCLAW_STATE_DIR` | `~/.openclaw` | OpenClaw state directory (use if your config is elsewhere) |
-| `NODE_ENV` | — | Set to `production` for production CORS (same-origin only) |
+| `NODE_ENV` | — | Set to `production` for production CORS (same-origin only), CSP, and rate limiting |
 | `ACCESS_CONTROL_ALLOW_ORIGIN` | — | When `NODE_ENV=production`, if set, allows this origin for CORS (e.g. if frontend is on a different host) |
 
 ## API
 
-- `GET /api/teams` — List teams
-- `GET /api/teams/:teamId/tickets` — List tickets for a team (with titles from markdown)
+**Core**
 - `GET /api/health` — Returns `{ ok: true, openclaw: boolean }` for monitoring
+- `GET /api/teams` — List teams
+- `DELETE /api/teams/:teamId` — Remove a scaffolded team (non-demo only; privileged; restrict access when behind a reverse proxy)
+- `GET /api/teams/:teamId/tickets` — List tickets for a team (with titles from markdown)
+- `GET /api/teams/:teamId/tickets/:ticketId/content` — Ticket markdown content
+- `GET /api/teams/:teamId/inbox` — List inbox items
+- `GET /api/teams/:teamId/inbox/:itemId/content` — Inbox item content
+
+**Ticket actions (POST with JSON body)**
+- `POST move` — Move ticket between columns (body: `{ ticketId, to }`)
+- `POST assign` — Assign owner (body: `{ ticketId, owner }`)
+- `POST take` — Take ticket
+- `POST handoff` — Handoff ticket
+- `POST complete` — Complete ticket
+- `POST dispatch` — Create new ticket from request (body: `{ request, owner }`)
+
+**Recipes**
+- `GET /api/recipes` — List recipes
+- `GET /api/recipes/:id` — Recipe detail
+- `GET /api/recipes/:id/status` — Recipe status (skills, scaffold state)
+- `POST /api/recipes/:id/scaffold-team` — Scaffold team from recipe
+- `POST /api/recipes/:id/scaffold-agent` — Scaffold agent from recipe
+- `POST /api/recipes/:id/install` — Install missing skills
+
+**Bindings**
+- `GET /api/bindings` — List bindings
+- `POST /api/bindings` — Add binding
+- `DELETE /api/bindings` — Remove binding
+
+**Activity & cleanup**
+- `GET /api/activity` — Recent activity events
+- `GET /api/cleanup/plan` — Plan workspace cleanup
+- `POST /api/cleanup/execute` — Execute cleanup (privileged; ensure only authorized users can call when behind a reverse proxy)
 
 **Demo mode** creates real ticket files under `kitchen/demo-data/workspace-demo-team/` on first load.
 

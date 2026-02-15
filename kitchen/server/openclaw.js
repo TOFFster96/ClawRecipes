@@ -82,9 +82,12 @@ export function listBindings() {
  * Add or update a binding.
  * @param {{ agentId: string; match: object }} params
  */
+const ID_RE = /^[a-zA-Z0-9_-]+$/;
+
 export function addBinding(params) {
   const { agentId, match } = params;
   if (!agentId || !match?.channel) throw new Error("agentId and match.channel are required");
+  if (!ID_RE.test(agentId)) throw new Error("Invalid agentId format");
   const args = ["recipes", "bind", "--agent-id", agentId, "--match", JSON.stringify(match)];
   runOpenClaw(args);
 }
@@ -96,6 +99,7 @@ export function addBinding(params) {
 export function removeBinding(params) {
   const { agentId, match } = params;
   if (!match?.channel) throw new Error("match.channel is required");
+  if (agentId && !ID_RE.test(agentId)) throw new Error("Invalid agentId format");
   const args = ["recipes", "unbind", "--channel", match.channel];
   if (agentId) args.push("--agent-id", agentId);
   const hasExtra = Object.keys(match).filter((k) => k !== "channel" && match[k] != null).length > 0;
@@ -145,12 +149,7 @@ export async function showRecipe(recipeId) {
   if (!recipeId || !/^[a-zA-Z0-9_-]+$/.test(recipeId)) {
     throw new Error("Invalid recipeId");
   }
-  const stdout = execSync(`openclaw recipes show ${recipeId}`, {
-    encoding: "utf8",
-    timeout: CLI_TIMEOUT,
-    env: CLI_ENV,
-  });
-  return stdout;
+  return runOpenClaw(["recipes", "show", recipeId]);
 }
 
 /**
@@ -229,9 +228,11 @@ export async function installRecipeSkills(recipeId, options = {}) {
   let workdir;
   if (scope === "team") {
     if (!teamId || !teamId.endsWith("-team")) throw new Error("teamId required and must end with -team");
+    if (!ID_RE.test(teamId)) throw new Error("Invalid teamId format");
     workdir = join(stateDir, `workspace-${teamId}`);
   } else if (scope === "agent") {
     if (!agentId) throw new Error("agentId required for agent scope");
+    if (!ID_RE.test(agentId)) throw new Error("Invalid agentId format");
     workdir = join(stateDir, `workspace-${agentId}`);
   } else {
     workdir = stateDir;
@@ -394,10 +395,7 @@ export async function getTickets(teamId) {
   if (!teamId || !/^[a-zA-Z0-9_-]+$/.test(teamId)) {
     throw new Error("Invalid teamId");
   }
-  const stdout = execSync(
-    `openclaw recipes tickets --team-id ${teamId} --json`,
-    { encoding: "utf8", timeout: CLI_TIMEOUT, env: CLI_ENV }
-  );
+  const stdout = runOpenClaw(["recipes", "tickets", "--team-id", teamId, "--json"]);
   const raw = JSON.parse(stdout);
   return enrichTicketsWithTitles(raw);
 }

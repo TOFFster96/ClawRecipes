@@ -27,7 +27,8 @@
     "smoke": "node scripts/scaffold-smoke.mjs",
     "scaffold:smoke": "node scripts/scaffold-smoke.mjs",
     "kitchen": "cd kitchen && npm run dev",
-    "kitchen:prod": "cd kitchen && npm run prod"
+    "kitchen:prod": "cd kitchen && npm run prod",
+    "audit": "npm audit --audit-level=high && cd kitchen && npm audit --audit-level=high"
   },
   "keywords": [
     "openclaw",

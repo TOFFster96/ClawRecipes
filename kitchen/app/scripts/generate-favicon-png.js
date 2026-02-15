@@ -3,6 +3,7 @@
  * Run before build; output goes to public/
  */
 import sharp from "sharp";
+import { existsSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 
@@ -10,6 +11,13 @@ const __dirname = dirname(fileURLToPath(import.meta.url));
 const REPO_ROOT = join(__dirname, "..", "..", "..");
 const SOURCE = join(REPO_ROOT, "clawcipes_cook.jpg");
 const PUBLIC = join(__dirname, "..", "public");
+
+if (!existsSync(SOURCE)) {
+  throw new Error(
+    `Favicon source not found: ${SOURCE}\n` +
+      "Ensure clawcipes_cook.jpg exists at the ClawRecipes repo root (run from kitchen/app)."
+  );
+}
 
 const favicon = sharp(SOURCE);
 await Promise.all([

@@ -22,4 +22,26 @@ describe('formatError', () => {
     expect(formatError(null)).toBe('null');
     expect(formatError(undefined)).toBe('undefined');
   });
+
+  test('sanitizes path in ENOENT error when NODE_ENV=production', () => {
+    const original = process.env.NODE_ENV;
+    process.env.NODE_ENV = 'production';
+    try {
+      expect(formatError(new Error("ENOENT: no such file or directory, open '/tmp/secret'"))).toBe('File not found');
+      expect(formatError(new Error('ENOENT: something failed'))).toBe('File not found');
+    } finally {
+      process.env.NODE_ENV = original;
+    }
+  });
+
+  test('returns raw message for ENOENT when not in production', () => {
+    const original = process.env.NODE_ENV;
+    process.env.NODE_ENV = 'development';
+    try {
+      const msg = "ENOENT: no such file or directory, open '/tmp/secret'";
+      expect(formatError(new Error(msg))).toBe(msg);
+    } finally {
+      process.env.NODE_ENV = original;
+    }
+  });
 });

@@ -59,4 +59,13 @@ describe('activity', () => {
     expect(events.length).toBeLessThanOrEqual(200);
     expect(events[0].message).toBe('Event 204');
   });
+
+  test('appendEvent truncates message exceeding MAX_MESSAGE_LENGTH', () => {
+    const longMsg = 'x'.repeat(1500);
+    appendEvent({ type: 'long', message: longMsg });
+    const events = getRecentEvents(10);
+    expect(events[0].message).toHaveLength(1027);
+    expect(events[0].message.endsWith('...')).toBe(true);
+    expect(events[0].message.startsWith('xxx')).toBe(true);
+  });
 });

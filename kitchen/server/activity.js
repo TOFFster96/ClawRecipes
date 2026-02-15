@@ -4,6 +4,7 @@
  */
 
 const MAX_EVENTS = 200;
+const MAX_MESSAGE_LENGTH = 1024;
 
 /** @type {Array<{ id: string; type: string; teamId?: string; ticketId?: string; message: string; timestamp: string }>} */
 const events = [];
@@ -14,7 +15,10 @@ let nextId = 1;
  * @param {{ type: string; teamId?: string; ticketId?: string; message: string }} opts
  */
 export function appendEvent(opts) {
-  const { type, teamId, ticketId, message } = opts;
+  let { type, teamId, ticketId, message } = opts;
+  if (typeof message === "string" && message.length > MAX_MESSAGE_LENGTH) {
+    message = message.slice(0, MAX_MESSAGE_LENGTH) + "...";
+  }
   const id = String(nextId++);
   const timestamp = new Date().toISOString();
   const event = { id, type, teamId, ticketId, message, timestamp };
@@ -30,6 +34,7 @@ export function appendEvent(opts) {
  * @returns {Array<{ id: string; type: string; teamId?: string; ticketId?: string; message: string; timestamp: string }>}
  */
 export function getRecentEvents(limit = 50) {
-  const n = Math.min(Math.max(1, limit), MAX_EVENTS);
+  const safe = Number.isFinite(limit) ? limit : 50;
+  const n = Math.min(Math.max(1, safe), MAX_EVENTS);
   return [...events].reverse().slice(0, n);
 }

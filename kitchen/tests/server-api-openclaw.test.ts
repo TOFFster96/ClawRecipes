@@ -50,6 +50,7 @@ import * as openclaw from '../server/openclaw.js';
 import * as activity from '../server/activity.js';
 
 const app = createApp();
+const prodApp = createApp({ production: true });
 
 function clearActivityEvents() {
   activityEvents.length = 0;
@@ -952,5 +953,148 @@ describe('POST body validation (non-demo team)', () => {
     expect(res.body).toHaveProperty('error');
     expect(res.body.error).toBe('Invalid teamId format');
     expect(openclaw.moveTicket).not.toHaveBeenCalled();
+  });
+});
+
+describe('Phase 3 security regression', () => {
+  beforeEach(() => {
+    vi.mocked(openclaw.checkOpenClaw).mockResolvedValue(true);
+    vi.mocked(openclaw.listRecipes).mockResolvedValue([
+      { id: 'default', name: 'Default', kind: 'recipe', source: 'builtin' },
+    ]);
+    vi.mocked(openclaw.showRecipe).mockResolvedValue('# Recipe');
+    vi.mocked(openclaw.addBinding).mockImplementation(() => {});
+    vi.mocked(openclaw.dispatch).mockImplementation(() => {});
+    vi.mocked(openclaw.showRecipe).mockClear();
+    vi.mocked(openclaw.addBinding).mockClear();
+    vi.mocked(openclaw.dispatch).mockClear();
+  });
+
+  test('GET /api/recipes/:id returns 400 for invalid recipeId', async () => {
+    const res = await request(app)
+      .get('/api/recipes/..%2F..%2F..%2Fetc')
+      .expect(400);
+    expect(res.body.error).toBe('Invalid recipeId format');
+    expect(openclaw.showRecipe).not.toHaveBeenCalled();
+  });
+
+  test('POST /api/bindings returns 400 for match with __proto__', async () => {
+    const res = await request(app)
+      .post('/api/bindings')
+      .set('Content-Type', 'application/json')
+      .send('{"agentId":"my-agent","match":{"channel":"x","__proto__":{}}}')
+      .expect(400);
+    expect(res.body.error).toBe('match contains disallowed key');
+    expect(openclaw.addBinding).not.toHaveBeenCalled();
+  });
+
+  test('POST /api/bindings returns 400 for match with unknown key', async () => {
+    const res = await request(app)
+      .post('/api/bindings')
+      .send({ agentId: 'my-agent', match: { channel: 'x', unknownKey: 1 } })
+      .expect(400);
+    expect(res.body.error).toBe('match contains unknown key');
+    expect(openclaw.addBinding).not.toHaveBeenCalled();
+  });
+
+  test('POST /api/teams/:teamId/dispatch returns 400 when request exceeds 64kb', async () => {
+    const longRequest = 'x'.repeat(65537);
+    const res = await request(app)
+      .post('/api/teams/my-team/dispatch')
+      .send({ request: longRequest })
+      .expect(400);
+    expect(res.body.error).toMatch(/64kb|maximum length/);
+    expect(openclaw.dispatch).not.toHaveBeenCalled();
+  });
+
+  test('GET /api/activity?limit=invalid returns 200 with up to 50 events', async () => {
+    const res = await request(app)
+      .get('/api/activity?limit=invalid')
+      .expect(200);
+    expect(Array.isArray(res.body)).toBe(true);
+    expect(res.body.length).toBeLessThanOrEqual(50);
+  });
+
+  test('GET /api/activity?limit=0 returns 200 with valid response', async () => {
+    const res = await request(app)
+      .get('/api/activity?limit=0')
+      .expect(200);
+    expect(Array.isArray(res.body)).toBe(true);
+  });
+
+  test('POST /api/bindings returns 400 when match value exceeds 1kb', async () => {
+    const res = await request(app)
+      .post('/api/bindings')
+      .send({ agentId: 'my-agent', match: { channel: 'x'.repeat(1025) } })
+      .expect(400);
+    expect(res.body.error).toMatch(/1kb|maximum length/);
+    expect(openclaw.addBinding).not.toHaveBeenCalled();
+  });
+});
+
+describe('scaffold-agent validation', () => {
+  beforeEach(() => {
+    vi.mocked(openclaw.checkOpenClaw).mockResolvedValue(true);
+    vi.mocked(openclaw.scaffoldAgent).mockImplementation(() => {});
+  });
+
+  test('returns 400 when agent name exceeds 256 chars', async () => {
+    const res = await request(app)
+      .post('/api/recipes/development-team/scaffold-agent')
+      .send({ agentId: 'my-agent', name: 'x'.repeat(257) })
+      .expect(400);
+    expect(res.body.error).toMatch(/256|maximum length/);
+    expect(openclaw.scaffoldAgent).not.toHaveBeenCalled();
+  });
+
+  test('returns 400 when agent name has invalid characters', async () => {
+    const res = await request(app)
+      .post('/api/recipes/development-team/scaffold-agent')
+      .send({ agentId: 'my-agent', name: 'Agent<script>' })
+      .expect(400);
+    expect(res.body.error).toMatch(/invalid|character/);
+    expect(openclaw.scaffoldAgent).not.toHaveBeenCalled();
+  });
+});
+
+describe('X-Confirm-Destructive (production)', () => {
+  beforeEach(() => {
+    vi.mocked(openclaw.checkOpenClaw).mockResolvedValue(true);
+    vi.mocked(openclaw.removeTeam).mockImplementation(() => {});
+    vi.mocked(openclaw.executeCleanup).mockResolvedValue({ ok: true, deleted: [], skipped: [], dryRun: false, rootDir: '/tmp', candidates: [] });
+    vi.mocked(openclaw.removeTeam).mockClear();
+    vi.mocked(openclaw.executeCleanup).mockClear();
+  });
+
+  test('DELETE /api/teams/:teamId returns 403 without X-Confirm-Destructive header', async () => {
+    const res = await request(prodApp)
+      .delete('/api/teams/my-team-team')
+      .expect(403);
+    expect(res.body.error).toMatch(/X-Confirm-Destructive|Destructive/);
+    expect(openclaw.removeTeam).not.toHaveBeenCalled();
+  });
+
+  test('DELETE /api/teams/:teamId returns 200 with X-Confirm-Destructive: true', async () => {
+    await request(prodApp)
+      .delete('/api/teams/my-team-team')
+      .set('X-Confirm-Destructive', 'true')
+      .expect(200);
+    expect(openclaw.removeTeam).toHaveBeenCalledWith('my-team-team');
+  });
+
+  test('POST /api/cleanup/execute returns 403 without X-Confirm-Destructive header', async () => {
+    const res = await request(prodApp)
+      .post('/api/cleanup/execute')
+      .expect(403);
+    expect(res.body.error).toMatch(/X-Confirm-Destructive|Destructive/);
+    expect(openclaw.executeCleanup).not.toHaveBeenCalled();
+  });
+
+  test('POST /api/cleanup/execute returns 200 with X-Confirm-Destructive: true', async () => {
+    await request(prodApp)
+      .post('/api/cleanup/execute')
+      .set('X-Confirm-Destructive', 'true')
+      .expect(200);
+    expect(openclaw.executeCleanup).toHaveBeenCalled();
   });
 });
