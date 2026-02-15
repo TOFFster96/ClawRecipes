@@ -1,6 +1,7 @@
 import { execSync, spawnSync } from "node:child_process";
 import { readdir, readFile, mkdir } from "node:fs/promises";
 import { join, dirname } from "node:path";
+import { ID_RE, DEMO_TEAM_ID } from "./validation.js";
 /**
  * Pass through process env for openclaw CLI. Do NOT set OPENCLAW_HOME to ~/.openclaw:
  * OPENCLAW_HOME overrides $HOME (not the openclaw dir), so that would break config lookup.
@@ -13,23 +14,6 @@ const SCAFFOLD_TIMEOUT = 120000;
 
 /** Suppress stderr when probing config (avoids "Config path not found" noise when unconfigured). */
 const SILENT_CLI = { encoding: "utf8", timeout: CLI_TIMEOUT, stdio: ["ignore", "pipe", "pipe"] };
-
-/**
- * Check if OpenClaw is available and configured.
- * @returns {Promise<boolean>}
- */
-
-export async function checkOpenClaw() {
-  try {
-    const out = execSync("openclaw config get agents.defaults.workspace", {
-      ...SILENT_CLI,
-      env: CLI_ENV,
-    });
-    return !!out?.trim();
-  } catch {
-    return false;
-  }
-}
 
 function getWorkspaceRoot() {
   try {
@@ -44,6 +28,14 @@ function getWorkspaceRoot() {
   }
 }
 
+/**
+ * Check if OpenClaw is available and configured.
+ * @returns {Promise<boolean>}
+ */
+export async function checkOpenClaw() {
+  return !!getWorkspaceRoot()?.trim();
+}
+
 function getWorkspaceParent() {
   const workspaceRoot = getWorkspaceRoot();
   if (!workspaceRoot) return null;
@@ -55,8 +47,8 @@ function getWorkspaceParent() {
  * @param {string} teamId - Team id (must end with -team)
  */
 export function removeTeam(teamId) {
-  if (!teamId || !/^[a-zA-Z0-9_-]+$/.test(teamId)) throw new Error("Invalid teamId");
-  if (teamId === "demo-team") throw new Error("Cannot remove demo team");
+  if (!teamId || !ID_RE.test(teamId)) throw new Error("Invalid teamId");
+  if (teamId === DEMO_TEAM_ID) throw new Error("Cannot remove demo team");
   runOpenClaw(["recipes", "remove-team", "--team-id", teamId, "--yes"]);
 }
 
@@ -65,25 +57,14 @@ export function removeTeam(teamId) {
  * @returns {Array<{ agentId: string; match: object }>}
  */
 export function listBindings() {
-  const result = spawnSync("openclaw", ["recipes", "bindings"], {
-    encoding: "utf8",
-    timeout: CLI_TIMEOUT,
-    env: CLI_ENV,
-  });
-  if (result.error) throw result.error;
-  if (result.status !== 0) {
-    throw new Error(result.stderr || result.stdout || `openclaw exited with ${result.status}`);
-  }
-  const out = result.stdout || "[]";
-  return JSON.parse(out);
+  const out = runOpenClaw(["recipes", "bindings"]);
+  return JSON.parse(out || "[]");
 }
 
 /**
  * Add or update a binding.
  * @param {{ agentId: string; match: object }} params
  */
-const ID_RE = /^[a-zA-Z0-9_-]+$/;
-
 export function addBinding(params) {
   const { agentId, match } = params;
   if (!agentId || !match?.channel) throw new Error("agentId and match.channel are required");
@@ -127,7 +108,7 @@ export async function listRecipes() {
  */
 export function recipeStatus(recipeId) {
   const args = ["recipes", "status"];
-  if (recipeId && /^[a-zA-Z0-9_-]+$/.test(recipeId)) args.push(recipeId);
+  if (recipeId && ID_RE.test(recipeId)) args.push(recipeId);
   const result = spawnSync("openclaw", args, {
     encoding: "utf8",
     timeout: CLI_TIMEOUT,
@@ -146,7 +127,7 @@ export function recipeStatus(recipeId) {
  * @returns {Promise<string>}
  */
 export async function showRecipe(recipeId) {
-  if (!recipeId || !/^[a-zA-Z0-9_-]+$/.test(recipeId)) {
+  if (!recipeId || !ID_RE.test(recipeId)) {
     throw new Error("Invalid recipeId");
   }
   return runOpenClaw(["recipes", "show", recipeId]);
@@ -159,12 +140,11 @@ export async function showRecipe(recipeId) {
  * @param {{ overwrite?: boolean }} options
  */
 export function scaffoldTeam(recipeId, teamId, options = {}) {
-  if (!recipeId || !/^[a-zA-Z0-9_-]+$/.test(recipeId)) {
+  if (!recipeId || !ID_RE.test(recipeId)) {
     throw new Error("Invalid recipeId");
   }
-  if (!teamId || !teamId.endsWith("-team")) {
-    throw new Error("teamId must end with -team");
-  }
+  if (!teamId || !teamId.endsWith("-team")) throw new Error("teamId must end with -team");
+  if (!ID_RE.test(teamId)) throw new Error("Invalid teamId");
   const args = [
     "recipes",
     "scaffold-team",
@@ -184,12 +164,10 @@ export function scaffoldTeam(recipeId, teamId, options = {}) {
  * @param {{ name?: string; overwrite?: boolean }} options
  */
 export function scaffoldAgent(recipeId, agentId, options = {}) {
-  if (!recipeId || !/^[a-zA-Z0-9_-]+$/.test(recipeId)) {
+  if (!recipeId || !ID_RE.test(recipeId)) {
     throw new Error("Invalid recipeId");
   }
-  if (!agentId || !/^[a-zA-Z0-9_-]+$/.test(agentId)) {
-    throw new Error("Invalid agentId");
-  }
+  if (!agentId || !ID_RE.test(agentId)) throw new Error("Invalid agentId");
   const args = [
     "recipes",
     "scaffold",
@@ -392,9 +370,7 @@ async function enrichTicketsWithTitles(data) {
  * @returns {Promise<{ teamId: string; tickets: any[]; backlog: any[]; inProgress: any[]; testing: any[]; done: any[] }>}
  */
 export async function getTickets(teamId) {
-  if (!teamId || !/^[a-zA-Z0-9_-]+$/.test(teamId)) {
-    throw new Error("Invalid teamId");
-  }
+  if (!teamId || !ID_RE.test(teamId)) throw new Error("Invalid teamId");
   const stdout = runOpenClaw(["recipes", "tickets", "--team-id", teamId, "--json"]);
   const raw = JSON.parse(stdout);
   return enrichTicketsWithTitles(raw);
@@ -417,9 +393,9 @@ const VALID_OWNERS = ["dev", "devops", "lead", "test"];
  * Move a ticket between stages.
  */
 export function moveTicket(teamId, ticketId, stage, options = {}) {
-  if (teamId === "demo-team") throw new Error("Cannot move tickets in demo mode");
-  if (!teamId || !/^[a-zA-Z0-9_-]+$/.test(teamId)) throw new Error("Invalid teamId");
-  if (!ticketId || !/^[a-zA-Z0-9_-]+$/.test(ticketId)) throw new Error("Invalid ticketId");
+  if (teamId === DEMO_TEAM_ID) throw new Error("Cannot move tickets in demo mode");
+  if (!teamId || !ID_RE.test(teamId)) throw new Error("Invalid teamId");
+  if (!ticketId || !ID_RE.test(ticketId)) throw new Error("Invalid ticketId");
   if (!VALID_STAGES.includes(stage)) throw new Error("Invalid stage");
   const args = ["recipes", "move-ticket", "--team-id", teamId, "--ticket", ticketId, "--to", stage, "--yes"];
   if (stage === "done" && options.completed) args.push("--completed");
@@ -430,9 +406,9 @@ export function moveTicket(teamId, ticketId, stage, options = {}) {
  * Assign a ticket to an owner.
  */
 export function assignTicket(teamId, ticketId, owner) {
-  if (teamId === "demo-team") throw new Error("Cannot assign tickets in demo mode");
-  if (!teamId || !/^[a-zA-Z0-9_-]+$/.test(teamId)) throw new Error("Invalid teamId");
-  if (!ticketId || !/^[a-zA-Z0-9_-]+$/.test(ticketId)) throw new Error("Invalid ticketId");
+  if (teamId === DEMO_TEAM_ID) throw new Error("Cannot assign tickets in demo mode");
+  if (!teamId || !ID_RE.test(teamId)) throw new Error("Invalid teamId");
+  if (!ticketId || !ID_RE.test(ticketId)) throw new Error("Invalid ticketId");
   if (!VALID_OWNERS.includes(owner)) throw new Error("Invalid owner");
   runOpenClaw(["recipes", "assign", "--team-id", teamId, "--ticket", ticketId, "--owner", owner, "--yes"]);
 }
@@ -441,9 +417,9 @@ export function assignTicket(teamId, ticketId, owner) {
  * Take a ticket (assign + move to in-progress).
  */
 export function takeTicket(teamId, ticketId, owner) {
-  if (teamId === "demo-team") throw new Error("Cannot take tickets in demo mode");
-  if (!teamId || !/^[a-zA-Z0-9_-]+$/.test(teamId)) throw new Error("Invalid teamId");
-  if (!ticketId || !/^[a-zA-Z0-9_-]+$/.test(ticketId)) throw new Error("Invalid ticketId");
+  if (teamId === DEMO_TEAM_ID) throw new Error("Cannot take tickets in demo mode");
+  if (!teamId || !ID_RE.test(teamId)) throw new Error("Invalid teamId");
+  if (!ticketId || !ID_RE.test(ticketId)) throw new Error("Invalid ticketId");
   if (!VALID_OWNERS.includes(owner)) throw new Error("Invalid owner");
   runOpenClaw(["recipes", "take", "--team-id", teamId, "--ticket", ticketId, "--owner", owner, "--yes"]);
 }
@@ -452,9 +428,9 @@ export function takeTicket(teamId, ticketId, owner) {
  * Handoff ticket to QA (move to testing + assign to tester).
  */
 export function handoffTicket(teamId, ticketId, tester = "test") {
-  if (teamId === "demo-team") throw new Error("Cannot handoff tickets in demo mode");
-  if (!teamId || !/^[a-zA-Z0-9_-]+$/.test(teamId)) throw new Error("Invalid teamId");
-  if (!ticketId || !/^[a-zA-Z0-9_-]+$/.test(ticketId)) throw new Error("Invalid ticketId");
+  if (teamId === DEMO_TEAM_ID) throw new Error("Cannot handoff tickets in demo mode");
+  if (!teamId || !ID_RE.test(teamId)) throw new Error("Invalid teamId");
+  if (!ticketId || !ID_RE.test(ticketId)) throw new Error("Invalid ticketId");
   if (!VALID_OWNERS.includes(tester)) throw new Error("Invalid tester");
   runOpenClaw(["recipes", "handoff", "--team-id", teamId, "--ticket", ticketId, "--tester", tester, "--yes"]);
 }
@@ -463,9 +439,9 @@ export function handoffTicket(teamId, ticketId, tester = "test") {
  * Complete a ticket (move to done + add Completed timestamp).
  */
 export function completeTicket(teamId, ticketId) {
-  if (teamId === "demo-team") throw new Error("Cannot complete tickets in demo mode");
-  if (!teamId || !/^[a-zA-Z0-9_-]+$/.test(teamId)) throw new Error("Invalid teamId");
-  if (!ticketId || !/^[a-zA-Z0-9_-]+$/.test(ticketId)) throw new Error("Invalid ticketId");
+  if (teamId === DEMO_TEAM_ID) throw new Error("Cannot complete tickets in demo mode");
+  if (!teamId || !ID_RE.test(teamId)) throw new Error("Invalid teamId");
+  if (!ticketId || !ID_RE.test(ticketId)) throw new Error("Invalid ticketId");
   runOpenClaw(["recipes", "complete", "--team-id", teamId, "--ticket", ticketId]);
 }
 
@@ -473,7 +449,7 @@ export function completeTicket(teamId, ticketId) {
  * Dispatch: create inbox + backlog ticket + assignment from request.
  */
 export function dispatch(teamId, request, owner = "dev") {
-  if (teamId === "demo-team") throw new Error("Cannot dispatch in demo mode");
+  if (teamId === DEMO_TEAM_ID) throw new Error("Cannot dispatch in demo mode");
   if (!teamId || !/^[a-zA-Z0-9_-]+$/.test(teamId)) throw new Error("Invalid teamId");
   if (!request || typeof request !== "string" || !request.trim()) throw new Error("Request text is required");
   if (!VALID_OWNERS.includes(owner)) throw new Error("Invalid owner");
@@ -486,9 +462,7 @@ export function dispatch(teamId, request, owner = "dev") {
  * @returns {Promise<Array<{ id: string; file: string; title?: string; received?: string }>>}
  */
 export async function listInbox(teamId) {
-  if (!teamId || !/^[a-zA-Z0-9_-]+$/.test(teamId)) {
-    throw new Error("Invalid teamId");
-  }
+  if (!teamId || !ID_RE.test(teamId)) throw new Error("Invalid teamId");
   const parent = getWorkspaceParent();
   if (!parent) return [];
 
@@ -547,9 +521,7 @@ export async function getInboxItemContent(teamId, itemId) {
  * @returns {Promise<string | null>} Markdown content or null if not found
  */
 export async function getTicketContent(teamId, ticketId) {
-  if (!teamId || !/^[a-zA-Z0-9_-]+$/.test(teamId)) {
-    throw new Error("Invalid teamId");
-  }
+  if (!teamId || !ID_RE.test(teamId)) throw new Error("Invalid teamId");
   if (!ticketId || !/^[a-zA-Z0-9_-]+$/.test(ticketId)) {
     throw new Error("Invalid ticketId");
   }

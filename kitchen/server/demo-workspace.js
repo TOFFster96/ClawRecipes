@@ -8,6 +8,13 @@ const __dirname = dirname(fileURLToPath(import.meta.url));
 /** Demo workspace root: kitchen/demo-data/workspace-demo-team */
 export const DEMO_WORKSPACE = join(__dirname, "..", "demo-data", "workspace-demo-team");
 
+const STAGE_DIR = {
+  backlog: "work/backlog",
+  "in-progress": "work/in-progress",
+  testing: "work/testing",
+  done: "work/done",
+};
+
 const DEMO_TICKETS = [
   { stage: "backlog", number: 1, id: "0001-setup-ci", slug: "0001-setup-ci", title: "Set up CI pipeline", owner: "dev" },
   { stage: "backlog", number: 2, id: "0002-add-tests", slug: "0002-add-tests", title: "Add unit tests", owner: "dev" },
@@ -46,14 +53,7 @@ export async function ensureDemoWorkspace() {
   }
 
   for (const t of DEMO_TICKETS) {
-    const stageDir =
-      t.stage === "backlog"
-        ? "work/backlog"
-        : t.stage === "in-progress"
-          ? "work/in-progress"
-          : t.stage === "testing"
-            ? "work/testing"
-            : "work/done";
+    const stageDir = STAGE_DIR[t.stage] ?? "work/done";
     const filePath = join(DEMO_WORKSPACE, stageDir, `${t.slug}.md`);
     if (!existsSync(filePath)) {
       const content = ticketContent(t.title);
@@ -77,14 +77,7 @@ export async function getDemoTickets() {
   const done = [];
 
   for (const t of DEMO_TICKETS) {
-    const stageDir =
-      t.stage === "backlog"
-        ? "work/backlog"
-        : t.stage === "in-progress"
-          ? "work/in-progress"
-          : t.stage === "testing"
-            ? "work/testing"
-            : "work/done";
+    const stageDir = STAGE_DIR[t.stage] ?? "work/done";
     const file = join(DEMO_WORKSPACE, stageDir, `${t.slug}.md`);
     const ticket = { ...t, file };
     if (t.stage === "backlog") backlog.push(ticket);
@@ -158,14 +151,7 @@ export async function getDemoTicketContent(ticketId) {
   await ensureDemoWorkspace();
   const t = DEMO_TICKETS.find((x) => x.id === ticketId);
   if (!t) return null;
-  const stageDir =
-    t.stage === "backlog"
-      ? "work/backlog"
-      : t.stage === "in-progress"
-        ? "work/in-progress"
-        : t.stage === "testing"
-          ? "work/testing"
-          : "work/done";
+  const stageDir = STAGE_DIR[t.stage] ?? "work/done";
   const file = join(DEMO_WORKSPACE, stageDir, `${t.slug}.md`);
   if (!existsSync(file)) return null;
   return readFile(file, "utf8");

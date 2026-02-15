@@ -3,6 +3,7 @@ import request from 'supertest';
 
 const activityEvents = [];
 vi.mock('../server/activity.js', () => ({
+  MAX_EVENTS: 200,
   appendEvent: vi.fn((opts) => {
     activityEvents.push({
       id: String(activityEvents.length + 1),
@@ -385,6 +386,26 @@ describe('recipes install API', () => {
       .expect(400);
     expect(res.body.error).toMatch(/teamId required.*-team/);
   });
+
+  test('POST /api/recipes/:id/install returns 400 when scope is team but teamId has invalid format', async () => {
+    vi.mocked(openclaw.installRecipeSkills).mockClear();
+    const res = await request(app)
+      .post('/api/recipes/dev/install')
+      .send({ scope: 'team', teamId: 'bad..id-team' })
+      .expect(400);
+    expect(res.body.error).toBe('Invalid teamId format');
+    expect(openclaw.installRecipeSkills).not.toHaveBeenCalled();
+  });
+
+  test('POST /api/recipes/:id/install returns 400 when scope is agent but agentId has invalid format', async () => {
+    vi.mocked(openclaw.installRecipeSkills).mockClear();
+    const res = await request(app)
+      .post('/api/recipes/dev/install')
+      .send({ scope: 'agent', agentId: 'bad id!' })
+      .expect(400);
+    expect(res.body.error).toBe('Invalid agentId format');
+    expect(openclaw.installRecipeSkills).not.toHaveBeenCalled();
+  });
 });
 
 describe('cleanup API', () => {
@@ -506,6 +527,16 @@ describe('Bindings API', () => {
     expect(res.body).toHaveProperty('error');
   });
 
+  test('POST /api/bindings returns 400 when agentId has invalid format', async () => {
+    vi.mocked(openclaw.addBinding).mockClear();
+    const res = await request(app)
+      .post('/api/bindings')
+      .send({ agentId: 'bad@id', match: { channel: 'telegram' } })
+      .expect(400);
+    expect(res.body.error).toBe('Invalid agentId format');
+    expect(openclaw.addBinding).not.toHaveBeenCalled();
+  });
+
   test('DELETE /api/bindings returns 200 when valid', async () => {
     vi.mocked(openclaw.removeBinding).mockImplementation(() => {});
 
@@ -530,6 +561,16 @@ describe('Bindings API', () => {
       .send({ match: {} })
       .expect(400);
     expect(res.body.error).toMatch(/match.channel/);
+  });
+
+  test('DELETE /api/bindings returns 400 when agentId provided but invalid format', async () => {
+    vi.mocked(openclaw.removeBinding).mockClear();
+    const res = await request(app)
+      .delete('/api/bindings')
+      .send({ agentId: 'bad..id', match: { channel: 'x' } })
+      .expect(400);
+    expect(res.body.error).toBe('Invalid agentId format');
+    expect(openclaw.removeBinding).not.toHaveBeenCalled();
   });
 });
 
@@ -909,6 +950,15 @@ describe('POST body validation (non-demo team)', () => {
       .send({ tester: 'qa' })
       .expect(200);
     expect(res.body).toEqual({ ok: true });
+  });
+
+  test('POST handoff passes explicit tester to handoffTicket', async () => {
+    vi.mocked(openclaw.handoffTicket).mockClear();
+    await request(app)
+      .post('/api/teams/my-team/tickets/0001-setup-ci/handoff')
+      .send({ tester: 'qa' })
+      .expect(200);
+    expect(openclaw.handoffTicket).toHaveBeenCalledWith('my-team', '0001-setup-ci', 'qa');
   });
 
   test('POST handoff returns 400 when handoffTicket throws', async () => {

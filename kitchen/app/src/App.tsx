@@ -4,6 +4,7 @@ import { Layout } from "./components/Layout";
 import { BoardPage } from "./pages/BoardPage";
 import { RecipesPage } from "./pages/RecipesPage";
 import { BindingsPage } from "./pages/BindingsPage";
+
 export default function App() {
   return (
     <DemoProvider>
@@ -21,3 +22,4 @@ export default function App() {
     </DemoProvider>
   );
 }
+

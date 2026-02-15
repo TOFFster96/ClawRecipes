@@ -1,5 +1,5 @@
 import { Button, Form, InputGroup, Spinner } from "react-bootstrap";
-import type { Team } from "../api";
+import { DEMO_TEAM_ID, type Team } from "../api";
 
 type Props = {
   teams: Team[];
@@ -89,7 +89,7 @@ export function TeamPicker({ teams, selectedTeamId, onSelect, onUseDemo, onRefre
           )}
           {onRemoveTeam &&
             selectedTeamId &&
-            selectedTeamId !== "demo-team" &&
+            selectedTeamId !== DEMO_TEAM_ID &&
             teams.some((t) => t.teamId === selectedTeamId) && (
               <Button
                 variant="outline-danger"

@@ -2,6 +2,7 @@ import React from 'react';
 import { describe, expect, test, vi, afterEach } from 'vitest';
 import { render, screen, cleanup } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
+import { fireEvent } from '@testing-library/react';
 import { TicketCard } from './TicketCard';
 
 afterEach(() => cleanup());
@@ -33,6 +34,31 @@ describe('TicketCard', () => {
     render(<TicketCard ticket={mockTicket} onSelect={onSelect} />);
     await user.click(screen.getByRole('button'));
     expect(onSelect).toHaveBeenCalledWith(mockTicket);
+  });
+
+  test('calls onSelect when Enter is pressed', async () => {
+    const user = userEvent.setup();
+    const onSelect = vi.fn();
+    render(<TicketCard ticket={mockTicket} onSelect={onSelect} />);
+    const card = screen.getByRole('button');
+    card.focus();
+    await user.keyboard('{Enter}');
+    expect(onSelect).toHaveBeenCalledWith(mockTicket);
+  });
+
+  test('calls onSelect when Space is pressed and prevents default', () => {
+    const onSelect = vi.fn();
+    render(<TicketCard ticket={mockTicket} onSelect={onSelect} />);
+    const card = screen.getByRole('button');
+    const keyEvent = fireEvent.keyDown(card, { key: ' ' });
+    expect(onSelect).toHaveBeenCalledWith(mockTicket);
+    expect(keyEvent).toBe(false);
+  });
+
+  test('has no keyboard handler when onSelect is undefined', () => {
+    render(<TicketCard ticket={mockTicket} />);
+    expect(screen.getByText('Set up CI').closest('[role="button"]')).toBeNull();
+    expect(screen.getByText('Set up CI').closest('[tabindex]')).toBeNull();
   });
 
   test('shows move dropdown when teamId and onMove provided and not demoMode', async () => {

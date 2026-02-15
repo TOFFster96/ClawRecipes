@@ -10,7 +10,7 @@ import {
   type Team,
   type TicketsResponse,
 } from "../api";
-import { Button, Container, Modal, Nav } from "react-bootstrap";
+import { Container, Nav } from "react-bootstrap";
 import { TeamPicker } from "../components/TeamPicker";
 import { KanbanBoard } from "../components/KanbanBoard";
 import { ActivityFeed } from "../components/ActivityFeed";
@@ -18,7 +18,9 @@ import { CleanupModal } from "../components/CleanupModal";
 import { TicketDetail } from "../components/TicketDetail";
 import { DispatchModal } from "../components/DispatchModal";
 import { InboxList } from "../components/InboxList";
+import { RemoveTeamModal } from "../components/RemoveTeamModal";
 import { useDemo } from "../DemoContext";
+import { useAsync } from "../hooks/useAsync";
 import type { Ticket } from "../api";
 
 const REFRESH_INTERVAL_MS = 30000;
@@ -27,38 +29,44 @@ export function BoardPage() {
   const [searchParams, setSearchParams] = useSearchParams();
   const { demoMode, setDemoMode } = useDemo();
   const [refreshTrigger, setRefreshTrigger] = useState(0);
-  const [teams, setTeams] = useState<Team[]>([]);
-  const [teamsLoading, setTeamsLoading] = useState(true);
-  const [teamsError, setTeamsError] = useState<string | null>(null);
-
   const [selectedTeamId, setSelectedTeamId] = useState<string | null>(null);
   const [boardTab, setBoardTab] = useState<"board" | "inbox">("board");
   const [dispatchModalOpen, setDispatchModalOpen] = useState(false);
   const [selectedTicket, setSelectedTicket] = useState<Ticket | null>(null);
-  const [ticketsData, setTicketsData] = useState<TicketsResponse | null>(null);
-  const [ticketsDataVersion, setTicketsDataVersion] = useState(0);
-  const [ticketsLoading, setTicketsLoading] = useState(false);
-  const [ticketsError, setTicketsError] = useState<string | null>(null);
-  const [ticketsRefreshTrigger, setTicketsRefreshTrigger] = useState(0);
   const [ticketMoveError, setTicketMoveError] = useState<string | null>(null);
   const [removeConfirmTeamId, setRemoveConfirmTeamId] = useState<string | null>(null);
   const [removeLoading, setRemoveLoading] = useState(false);
   const [removeError, setRemoveError] = useState<string | null>(null);
   const [cleanupModalOpen, setCleanupModalOpen] = useState(false);
+  const [ticketsDataVersion, setTicketsDataVersion] = useState(0);
 
   const prevDemoMode = useRef(demoMode);
-  const ticketsDataRef = useRef(ticketsData);
-  ticketsDataRef.current = ticketsData;
   const teamFromUrl = searchParams.get("team");
+
+  const teamsData = useAsync(
+    () => fetchTeams(),
+    [demoMode, refreshTrigger],
+    { enabled: !demoMode }
+  );
+  const teams = teamsData.data ?? [];
+  const teamsLoading = teamsData.loading;
+  const teamsError = teamsData.error;
+
+  const ticketsData = useAsync<TicketsResponse>(
+    () => (selectedTeamId ? fetchTickets(selectedTeamId) : Promise.resolve(null) as Promise<TicketsResponse | null>),
+    [selectedTeamId, demoMode, refreshTrigger],
+    { enabled: !!selectedTeamId, refetchInterval: REFRESH_INTERVAL_MS }
+  );
+
+  useEffect(() => {
+    if (ticketsData.data) setTicketsDataVersion((v) => v + 1);
+  }, [ticketsData.data]);
 
   // When URL has ?team=demo-team, enter demo mode so demo data loads consistently (e.g. after refresh).
   useEffect(() => {
     if (teamFromUrl !== DEMO_TEAM_ID) return;
     if (demoMode) return;
     setDemoMode(true);
-    setTeams(DEMO_TEAMS);
-    setTeamsLoading(false);
-    setTeamsError(null);
   }, [teamFromUrl, demoMode, setDemoMode]);
 
   useEffect(() => {
@@ -71,68 +79,10 @@ export function BoardPage() {
       setSelectedTeamId(null);
       setSearchParams({}, { replace: true });
       setSelectedTicket(null);
-      setTicketsData(null);
-      setTicketsLoading(true);
       setRefreshTrigger((n) => n + 1);
     }
     prevDemoMode.current = demoMode;
   }, [demoMode, setSearchParams]);
-
-  useEffect(() => {
-    if (demoMode) return;
-    let cancelled = false;
-    (async () => {
-      try {
-        const data = await fetchTeams();
-        if (!cancelled) setTeams(data);
-      } catch (e) {
-        if (!cancelled) setTeamsError(String(e));
-      } finally {
-        if (!cancelled) setTeamsLoading(false);
-      }
-    })();
-    return () => { cancelled = true; };
-  }, [demoMode, refreshTrigger]);
-
-  useEffect(() => {
-    if (!selectedTeamId) {
-      setTicketsData(null);
-      setTicketsError(null);
-      return;
-    }
-
-    let cancelled = false;
-    const load = async () => {
-      const current = ticketsDataRef.current;
-      const isBackgroundRefresh =
-        current?.teamId === selectedTeamId;
-      if (!isBackgroundRefresh) {
-        setTicketsLoading(true);
-      }
-      setTicketsError(null);
-      try {
-        const data = await fetchTickets(selectedTeamId);
-        if (!cancelled) {
-          setTicketsData(data);
-          setTicketsDataVersion((v) => v + 1);
-        }
-      } catch (e) {
-        if (!cancelled) {
-          setTicketsError(String(e));
-          if (!isBackgroundRefresh) setTicketsData(null);
-        }
-      } finally {
-        if (!cancelled) setTicketsLoading(false);
-      }
-    };
-
-    load();
-    const id = setInterval(load, REFRESH_INTERVAL_MS);
-    return () => {
-      cancelled = true;
-      clearInterval(id);
-    };
-  }, [selectedTeamId, demoMode, refreshTrigger, ticketsRefreshTrigger]);
 
   const handleRefresh = () => {
     if (demoMode) return;
@@ -144,11 +94,11 @@ export function BoardPage() {
     to: string,
     completed?: boolean
   ) => {
-    if (!selectedTeamId || demoMode || selectedTeamId === "demo-team") return;
+    if (!selectedTeamId || demoMode || selectedTeamId === DEMO_TEAM_ID) return;
     setTicketMoveError(null);
     try {
       await moveTicket(selectedTeamId, ticketId, to, completed);
-      setTicketsRefreshTrigger((n) => n + 1);
+      ticketsData.retry();
     } catch (e) {
       setTicketMoveError(String(e));
     }
@@ -156,20 +106,14 @@ export function BoardPage() {
 
   const handleTicketUpdated = () => {
     if (demoMode) return;
-    setTicketsRefreshTrigger((n) => n + 1);
+    ticketsData.retry();
   };
 
   const handleUseDemo = () => {
     setDemoMode(true);
-    setTeams(DEMO_TEAMS);
-    setTeamsLoading(false);
-    setTeamsError(null);
     setSelectedTeamId(DEMO_TEAM_ID);
     setSearchParams({ team: DEMO_TEAM_ID }, { replace: true });
     setSelectedTicket(null);
-    setTicketsData(null);
-    setTicketsLoading(true);
-    setTicketsError(null);
   };
 
   const displayTeams = demoMode ? DEMO_TEAMS : teams;
@@ -195,9 +139,9 @@ export function BoardPage() {
         setSelectedTeamId(null);
         setSearchParams({}, { replace: true });
         setSelectedTicket(null);
-        setTicketsData(null);
       }
       setRefreshTrigger((n) => n + 1);
+      teamsData.retry();
     } catch (e) {
       setRemoveError(String(e));
     } finally {
@@ -237,40 +181,14 @@ export function BoardPage() {
         onSuccess={() => setRefreshTrigger((n) => n + 1)}
       />
 
-      <Modal
+      <RemoveTeamModal
         show={!!removeConfirmTeamId}
-        onHide={() => !removeLoading && setRemoveConfirmTeamId(null)}
-      >
-        <Modal.Header closeButton>
-          <Modal.Title className="d-flex align-items-center gap-2">
-            <svg width="24" height="24" viewBox="0 0 24 24" fill="currentColor" className="text-warning" aria-hidden>
-              <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm1 15h-2v-2h2v2zm0-4h-2V7h2v6z" />
-            </svg>
-            Delete team
-          </Modal.Title>
-        </Modal.Header>
-        <Modal.Body>
-          {removeError && (
-            <div className="alert alert-danger" role="alert">{removeError}</div>
-          )}
-          <p className="mb-0">
-            This will delete <strong>workspace-{removeConfirmTeamId}</strong>, remove matching
-            agents from OpenClaw config, and remove stamped cron jobs. This cannot be undone.
-          </p>
-        </Modal.Body>
-        <Modal.Footer>
-          <Button variant="secondary" onClick={() => setRemoveConfirmTeamId(null)} disabled={removeLoading}>
-            Cancel
-          </Button>
-          <Button
-            variant="danger"
-            onClick={handleConfirmRemove}
-            disabled={removeLoading}
-          >
-            {removeLoading ? "Deleting…" : "Delete team"}
-          </Button>
-        </Modal.Footer>
-      </Modal>
+        onHide={() => setRemoveConfirmTeamId(null)}
+        teamId={removeConfirmTeamId}
+        loading={removeLoading}
+        error={removeError}
+        onConfirm={handleConfirmRemove}
+      />
 
       {selectedTeamId && (
         <>
@@ -318,18 +236,18 @@ export function BoardPage() {
                   type="button"
                   className="btn btn-primary btn-sm"
                   onClick={() => setDispatchModalOpen(true)}
-                  disabled={demoMode || selectedTeamId === "demo-team"}
+                  disabled={demoMode || selectedTeamId === DEMO_TEAM_ID}
                 >
                   New ticket
                 </button>
               </div>
               <KanbanBoard
-            backlog={ticketsData?.backlog ?? []}
-            inProgress={ticketsData?.inProgress ?? []}
-            testing={ticketsData?.testing ?? []}
-            done={ticketsData?.done ?? []}
-            loading={ticketsLoading}
-            error={ticketsError}
+            backlog={ticketsData.data?.backlog ?? []}
+            inProgress={ticketsData.data?.inProgress ?? []}
+            testing={ticketsData.data?.testing ?? []}
+            done={ticketsData.data?.done ?? []}
+            loading={ticketsData.loading}
+            error={ticketsData.error}
             onSelectTicket={setSelectedTicket}
             dataVersion={ticketsDataVersion}
             teamId={selectedTeamId}
@@ -351,7 +269,7 @@ export function BoardPage() {
             show={dispatchModalOpen}
             onClose={() => setDispatchModalOpen(false)}
             onSuccess={handleTicketUpdated}
-              disabled={demoMode || selectedTeamId === "demo-team"}
+              disabled={demoMode || selectedTeamId === DEMO_TEAM_ID}
               />
             </div>
           )}

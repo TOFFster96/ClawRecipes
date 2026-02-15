@@ -2,6 +2,7 @@ import { useState } from "react";
 import { Button, Form, Modal } from "react-bootstrap";
 import { dispatchTicket } from "../api";
 import { OWNERS } from "../constants";
+import { useFormSubmit } from "../hooks/useFormSubmit";
 
 type Props = {
   teamId: string;
@@ -20,31 +21,24 @@ export function DispatchModal({
 }: Props) {
   const [request, setRequest] = useState("");
   const [owner, setOwner] = useState<(typeof OWNERS)[number]>("dev");
-  const [loading, setLoading] = useState(false);
-  const [error, setError] = useState<string | null>(null);
+  const { loading, error, submit } = useFormSubmit();
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (disabled || !request.trim()) return;
-    setError(null);
-    setLoading(true);
-    try {
+    const ok = await submit(async () => {
       await dispatchTicket(teamId, request.trim(), owner);
       setRequest("");
       setOwner("dev");
       onSuccess?.();
       onClose();
-    } catch (e) {
-      setError(String(e));
-    } finally {
-      setLoading(false);
-    }
+    });
+    if (ok === null) return;
   };
 
   const handleClose = () => {
     if (!loading) {
       setRequest("");
-      setError(null);
       onClose();
     }
   };

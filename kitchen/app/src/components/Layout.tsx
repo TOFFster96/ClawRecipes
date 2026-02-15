@@ -3,17 +3,17 @@ import { Nav, Navbar, Container } from "react-bootstrap";
 import { Outlet, NavLink, useLocation } from "react-router-dom";
 import { ThemeToggle } from "./ThemeToggle";
 import { useDemo } from "../DemoContext";
+import { ROUTE_TITLES } from "../constants";
+
+const DOCUMENT_TITLE_BASE = "ClawRecipes Kitchen";
 
 export function Layout() {
   const { demoMode, setDemoMode } = useDemo();
   const location = useLocation();
 
   useEffect(() => {
-    const base = "ClawRecipes Kitchen";
-    if (location.pathname === "/board") document.title = `Board – ${base}`;
-    else if (location.pathname === "/recipes") document.title = `Recipes – ${base}`;
-    else if (location.pathname === "/bindings") document.title = `Bindings – ${base}`;
-    else document.title = base;
+    const title = ROUTE_TITLES[location.pathname];
+    document.title = title ? `${title} – ${DOCUMENT_TITLE_BASE}` : DOCUMENT_TITLE_BASE;
   }, [location.pathname]);
 
   return (

@@ -11,6 +11,7 @@ vi.mock('../api', () => ({
   takeTicket: vi.fn(),
   handoffTicket: vi.fn(),
   completeTicket: vi.fn(),
+  DEMO_TEAM_ID: 'demo-team',
 }));
 
 import * as api from '../api';

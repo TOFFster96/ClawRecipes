@@ -34,23 +34,25 @@ async function parseApiError(res: Response): Promise<string> {
   return text;
 }
 
-export async function fetchTeams(): Promise<Team[]> {
-  const res = await fetch("/api/teams");
+/**
+ * Fetch JSON from API; throws on !res.ok with parsed error message.
+ */
+async function fetchJson<T>(url: string, init?: RequestInit): Promise<T> {
+  const res = await fetch(url, init);
   if (!res.ok) throw new Error(await parseApiError(res));
   return res.json();
+}
+
+export async function fetchTeams(): Promise<Team[]> {
+  return fetchJson<Team[]>("/api/teams");
 }
 
 export async function removeTeam(teamId: string): Promise<void> {
-  const res = await fetch(`/api/teams/${encodeURIComponent(teamId)}`, {
-    method: "DELETE",
-  });
-  if (!res.ok) throw new Error(await parseApiError(res));
+  await fetchJson(`/api/teams/${encodeURIComponent(teamId)}`, { method: "DELETE" });
 }
 
 export async function fetchTickets(teamId: string): Promise<TicketsResponse> {
-  const res = await fetch(`/api/teams/${encodeURIComponent(teamId)}/tickets`);
-  if (!res.ok) throw new Error(await parseApiError(res));
-  return res.json();
+  return fetchJson(`/api/teams/${encodeURIComponent(teamId)}/tickets`);
 }
 
 export async function moveTicket(
@@ -59,7 +61,7 @@ export async function moveTicket(
   to: string,
   completed?: boolean
 ): Promise<void> {
-  const res = await fetch(
+  await fetchJson(
     `/api/teams/${encodeURIComponent(teamId)}/tickets/${encodeURIComponent(ticketId)}/move`,
     {
       method: "POST",
@@ -67,7 +69,6 @@ export async function moveTicket(
       body: JSON.stringify({ to, completed }),
     }
   );
-  if (!res.ok) throw new Error(await parseApiError(res));
 }
 
 export async function assignTicket(
@@ -75,7 +76,7 @@ export async function assignTicket(
   ticketId: string,
   owner: string
 ): Promise<void> {
-  const res = await fetch(
+  await fetchJson(
     `/api/teams/${encodeURIComponent(teamId)}/tickets/${encodeURIComponent(ticketId)}/assign`,
     {
       method: "POST",
@@ -83,7 +84,6 @@ export async function assignTicket(
       body: JSON.stringify({ owner }),
     }
   );
-  if (!res.ok) throw new Error(await parseApiError(res));
 }
 
 export async function takeTicket(
@@ -91,7 +91,7 @@ export async function takeTicket(
   ticketId: string,
   owner: string
 ): Promise<void> {
-  const res = await fetch(
+  await fetchJson(
     `/api/teams/${encodeURIComponent(teamId)}/tickets/${encodeURIComponent(ticketId)}/take`,
     {
       method: "POST",
@@ -99,11 +99,10 @@ export async function takeTicket(
       body: JSON.stringify({ owner }),
     }
   );
-  if (!res.ok) throw new Error(await parseApiError(res));
 }
 
 export async function handoffTicket(teamId: string, ticketId: string, tester?: string): Promise<void> {
-  const res = await fetch(
+  await fetchJson(
     `/api/teams/${encodeURIComponent(teamId)}/tickets/${encodeURIComponent(ticketId)}/handoff`,
     {
       method: "POST",
@@ -111,15 +110,13 @@ export async function handoffTicket(teamId: string, ticketId: string, tester?: s
       body: JSON.stringify({ tester: tester ?? "test" }),
     }
   );
-  if (!res.ok) throw new Error(await parseApiError(res));
 }
 
 export async function completeTicket(teamId: string, ticketId: string): Promise<void> {
-  const res = await fetch(
+  await fetchJson(
     `/api/teams/${encodeURIComponent(teamId)}/tickets/${encodeURIComponent(ticketId)}/complete`,
     { method: "POST" }
   );
-  if (!res.ok) throw new Error(await parseApiError(res));
 }
 
 export async function dispatchTicket(
@@ -127,12 +124,11 @@ export async function dispatchTicket(
   request: string,
   owner?: string
 ): Promise<void> {
-  const res = await fetch(`/api/teams/${encodeURIComponent(teamId)}/dispatch`, {
+  await fetchJson(`/api/teams/${encodeURIComponent(teamId)}/dispatch`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ request, owner: owner ?? "dev" }),
   });
-  if (!res.ok) throw new Error(await parseApiError(res));
 }
 
 export type InboxItem = {
@@ -142,26 +138,20 @@ export type InboxItem = {
 };
 
 export async function fetchInbox(teamId: string): Promise<InboxItem[]> {
-  const res = await fetch(`/api/teams/${encodeURIComponent(teamId)}/inbox`);
-  if (!res.ok) throw new Error(await parseApiError(res));
-  return res.json();
+  return fetchJson(`/api/teams/${encodeURIComponent(teamId)}/inbox`);
 }
 
 export async function fetchInboxContent(teamId: string, itemId: string): Promise<string> {
-  const res = await fetch(
+  const data = await fetchJson<{ content: string }>(
     `/api/teams/${encodeURIComponent(teamId)}/inbox/${encodeURIComponent(itemId)}/content`
   );
-  if (!res.ok) throw new Error(await parseApiError(res));
-  const data = await res.json();
   return data.content;
 }
 
 export async function fetchTicketContent(teamId: string, ticketId: string): Promise<string> {
-  const res = await fetch(
+  const data = await fetchJson<{ content: string }>(
     `/api/teams/${encodeURIComponent(teamId)}/tickets/${encodeURIComponent(ticketId)}/content`
   );
-  if (!res.ok) throw new Error(await parseApiError(res));
-  const data = await res.json();
   return data.content;
 }
 
@@ -173,15 +163,11 @@ export type Recipe = {
 };
 
 export async function fetchRecipes(): Promise<Recipe[]> {
-  const res = await fetch("/api/recipes");
-  if (!res.ok) throw new Error(await parseApiError(res));
-  return res.json();
+  return fetchJson("/api/recipes");
 }
 
 export async function fetchRecipe(id: string): Promise<{ md: string }> {
-  const res = await fetch(`/api/recipes/${encodeURIComponent(id)}`);
-  if (!res.ok) throw new Error(await parseApiError(res));
-  return res.json();
+  return fetchJson(`/api/recipes/${encodeURIComponent(id)}`);
 }
 
 export type RecipeStatus = {
@@ -195,9 +181,7 @@ export async function fetchRecipeStatus(id?: string): Promise<RecipeStatus[]> {
   const url = id
     ? `/api/recipes/${encodeURIComponent(id)}/status`
     : "/api/recipes/status";
-  const res = await fetch(url);
-  if (!res.ok) throw new Error(await parseApiError(res));
-  const data = await res.json();
+  const data = await fetchJson<RecipeStatus[] | RecipeStatus>(url);
   return Array.isArray(data) ? data : [data];
 }
 
@@ -206,28 +190,22 @@ export async function scaffoldRecipeTeam(
   teamId: string,
   overwrite?: boolean
 ): Promise<void> {
-  const res = await fetch(
-    `/api/recipes/${encodeURIComponent(recipeId)}/scaffold-team`,
-    {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ teamId, overwrite }),
-    }
-  );
-  if (!res.ok) throw new Error(await parseApiError(res));
+  await fetchJson(`/api/recipes/${encodeURIComponent(recipeId)}/scaffold-team`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ teamId, overwrite }),
+  });
 }
 
 export async function installRecipeSkills(
   recipeId: string,
   options: { scope?: "global" | "team" | "agent"; teamId?: string; agentId?: string }
 ): Promise<{ ok: boolean; installed: string[]; errors?: Array<{ skill: string; error: string }> }> {
-  const res = await fetch(`/api/recipes/${encodeURIComponent(recipeId)}/install`, {
+  return fetchJson(`/api/recipes/${encodeURIComponent(recipeId)}/install`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify(options),
   });
-  if (!res.ok) throw new Error(await parseApiError(res));
-  return res.json();
 }
 
 export async function scaffoldRecipeAgent(
@@ -235,19 +213,15 @@ export async function scaffoldRecipeAgent(
   agentId: string,
   options?: { name?: string; overwrite?: boolean }
 ): Promise<void> {
-  const res = await fetch(
-    `/api/recipes/${encodeURIComponent(recipeId)}/scaffold-agent`,
-    {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        agentId,
-        name: options?.name,
-        overwrite: options?.overwrite,
-      }),
-    }
-  );
-  if (!res.ok) throw new Error(await parseApiError(res));
+  await fetchJson(`/api/recipes/${encodeURIComponent(recipeId)}/scaffold-agent`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({
+      agentId,
+      name: options?.name,
+      overwrite: options?.overwrite,
+    }),
+  });
 }
 
 export type Binding = {
@@ -262,33 +236,29 @@ export type Binding = {
 };
 
 export async function fetchBindings(): Promise<Binding[]> {
-  const res = await fetch("/api/bindings");
-  if (!res.ok) throw new Error(await parseApiError(res));
-  return res.json();
+  return fetchJson("/api/bindings");
 }
 
 export async function addBindingAPI(
   agentId: string,
   match: Binding["match"]
 ): Promise<void> {
-  const res = await fetch("/api/bindings", {
+  await fetchJson("/api/bindings", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ agentId, match }),
   });
-  if (!res.ok) throw new Error(await parseApiError(res));
 }
 
 export async function removeBindingAPI(
   match: Binding["match"],
   agentId?: string
 ): Promise<void> {
-  const res = await fetch("/api/bindings", {
+  await fetchJson("/api/bindings", {
     method: "DELETE",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ agentId, match }),
   });
-  if (!res.ok) throw new Error(await parseApiError(res));
 }
 
 export type ActivityEvent = {
@@ -302,9 +272,7 @@ export type ActivityEvent = {
 
 export async function fetchActivity(limit?: number): Promise<ActivityEvent[]> {
   const url = limit ? `/api/activity?limit=${limit}` : "/api/activity";
-  const res = await fetch(url);
-  if (!res.ok) throw new Error(await parseApiError(res));
-  return res.json();
+  return fetchJson(url);
 }
 
 export async function fetchCleanupPlan(): Promise<{
@@ -314,9 +282,7 @@ export async function fetchCleanupPlan(): Promise<{
   candidates: Array<{ teamId: string; absPath: string }>;
   skipped: Array<{ teamId?: string; dirName: string; reason: string }>;
 }> {
-  const res = await fetch("/api/cleanup/plan");
-  if (!res.ok) throw new Error(await parseApiError(res));
-  return res.json();
+  return fetchJson("/api/cleanup/plan");
 }
 
 export async function executeCleanup(): Promise<{
@@ -328,15 +294,11 @@ export async function executeCleanup(): Promise<{
   deleted: string[];
   deleteErrors?: Array<{ path: string; error: string }>;
 }> {
-  const res = await fetch("/api/cleanup/execute", { method: "POST" });
-  if (!res.ok) throw new Error(await parseApiError(res));
-  return res.json();
+  return fetchJson("/api/cleanup/execute", { method: "POST" });
 }
 
 export async function fetchHealth(): Promise<{ ok: boolean; openclaw: boolean }> {
-  const res = await fetch("/api/health");
-  if (!res.ok) throw new Error(await parseApiError(res));
-  return res.json();
+  return fetchJson("/api/health");
 }
 
 /** Demo data for when running Kitchen without OpenClaw (e.g. standalone or plugin demo). */

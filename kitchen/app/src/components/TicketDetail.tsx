@@ -1,8 +1,21 @@
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import ReactMarkdown from "react-markdown";
 import rehypeHighlight from "rehype-highlight";
 import rehypeSanitize from "rehype-sanitize";
 import { Button, Dropdown, Modal } from "react-bootstrap";
+import {
+  fetchTicketContent,
+  moveTicket,
+  assignTicket,
+  takeTicket,
+  handoffTicket,
+  completeTicket,
+  DEMO_TEAM_ID,
+} from "../api";
+import type { Ticket } from "../api";
+import { OWNERS, STAGES } from "../constants";
+import { useAsync } from "../hooks/useAsync";
+import { LoadingSpinner } from "./LoadingSpinner";
 
 const METADATA_KEYS = ["Created", "Owner", "Status", "Inbox", "Assignment"];
 
@@ -54,16 +67,6 @@ function TicketContent({ content }: { content: string }) {
     </>
   );
 }
-import {
-  fetchTicketContent,
-  moveTicket,
-  assignTicket,
-  takeTicket,
-  handoffTicket,
-  completeTicket,
-} from "../api";
-import type { Ticket } from "../api";
-import { OWNERS, STAGES } from "../constants";
 
 type Props = {
   ticket: Ticket;
@@ -74,14 +77,18 @@ type Props = {
 };
 
 export function TicketDetail({ ticket, teamId, onClose, demoMode = false, onUpdated }: Props) {
-  const [content, setContent] = useState<string | null>(null);
-  const [error, setError] = useState<string | null>(null);
-  const [loading, setLoading] = useState(true);
-  const [contentRetryTrigger, setContentRetryTrigger] = useState(0);
   const [actionLoading, setActionLoading] = useState(false);
   const [actionError, setActionError] = useState<string | null>(null);
 
-  const disabled = demoMode || teamId === "demo-team";
+  const contentData = useAsync(
+    () => fetchTicketContent(teamId, ticket.id),
+    [teamId, ticket.id]
+  );
+  const content = contentData.data;
+  const loading = contentData.loading;
+  const error = contentData.error;
+
+  const disabled = demoMode || teamId === DEMO_TEAM_ID;
 
   const runAction = async (fn: () => Promise<void>) => {
     if (disabled) return;
@@ -97,24 +104,6 @@ export function TicketDetail({ ticket, teamId, onClose, demoMode = false, onUpda
       setActionLoading(false);
     }
   };
-
-  useEffect(() => {
-    let cancelled = false;
-    setLoading(true);
-    setError(null);
-    setContent(null);
-    fetchTicketContent(teamId, ticket.id)
-      .then((data) => {
-        if (!cancelled) setContent(data);
-      })
-      .catch((e) => {
-        if (!cancelled) setError(String(e));
-      })
-      .finally(() => {
-        if (!cancelled) setLoading(false);
-      });
-    return () => { cancelled = true; };
-  }, [teamId, ticket.id, contentRetryTrigger]);
 
   return (
     <Modal show onHide={onClose} size="lg" scrollable>
@@ -133,15 +122,12 @@ export function TicketDetail({ ticket, teamId, onClose, demoMode = false, onUpda
       </Modal.Header>
       <Modal.Body>
         {loading && (
-          <div className="text-center text-muted py-4">
-            <div className="spinner-border me-2" role="status" aria-hidden="true" />
-            Loading...
-          </div>
+          <LoadingSpinner className="text-center text-muted py-4" message="Loading..." />
         )}
         {error && (
           <div className="alert alert-danger" role="alert">
             <p className="mb-2">{error}</p>
-            <Button variant="primary" size="sm" onClick={() => setContentRetryTrigger((n) => n + 1)}>
+            <Button variant="primary" size="sm" onClick={() => contentData.retry()}>
               Retry
             </Button>
           </div>

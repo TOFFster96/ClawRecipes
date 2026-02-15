@@ -1,5 +1,12 @@
 import { describe, expect, test } from 'vitest';
-import { OWNERS, STAGES, KANBAN_COLUMNS } from '../app/src/constants.ts';
+import {
+  OWNERS,
+  STAGES,
+  KANBAN_COLUMNS,
+  ROUTE_TITLES,
+  ACTIVITY_FETCH_LIMIT,
+  TICKET_CARD_FLASH_DURATION_MS,
+} from '../app/src/constants.ts';
 
 describe('constants', () => {
   test('OWNERS has length 4 and includes dev and test', () => {
@@ -24,5 +31,16 @@ describe('constants', () => {
       expect(col).toHaveProperty('label');
       expect(col).toHaveProperty('accent');
     }
+  });
+
+  test('ROUTE_TITLES includes board, recipes, bindings', () => {
+    expect(ROUTE_TITLES['/board']).toBe('Board');
+    expect(ROUTE_TITLES['/recipes']).toBe('Recipes');
+    expect(ROUTE_TITLES['/bindings']).toBe('Bindings');
+  });
+
+  test('ACTIVITY_FETCH_LIMIT and TICKET_CARD_FLASH_DURATION_MS are positive numbers', () => {
+    expect(ACTIVITY_FETCH_LIMIT).toBeGreaterThan(0);
+    expect(TICKET_CARD_FLASH_DURATION_MS).toBeGreaterThan(0);
   });
 });

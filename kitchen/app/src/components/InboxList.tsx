@@ -1,79 +1,42 @@
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import ReactMarkdown from "react-markdown";
 import rehypeHighlight from "rehype-highlight";
 import rehypeSanitize from "rehype-sanitize";
-import { Button, ListGroup, Modal, Spinner } from "react-bootstrap";
+import { Button, ListGroup, Modal } from "react-bootstrap";
 import { fetchInbox, fetchInboxContent, type InboxItem } from "../api";
+import { useAsync } from "../hooks/useAsync";
+import { LoadingSpinner } from "./LoadingSpinner";
 
 type Props = {
   teamId: string;
 };
 
 export function InboxList({ teamId }: Props) {
-  const [items, setItems] = useState<InboxItem[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
-  const [retryTrigger, setRetryTrigger] = useState(0);
   const [selectedItem, setSelectedItem] = useState<InboxItem | null>(null);
-  const [content, setContent] = useState<string | null>(null);
-  const [contentLoading, setContentLoading] = useState(false);
-  const [contentError, setContentError] = useState<string | null>(null);
-  const [contentRetryTrigger, setContentRetryTrigger] = useState(0);
 
-  useEffect(() => {
-    let cancelled = false;
-    setLoading(true);
-    setError(null);
-    fetchInbox(teamId)
-      .then((data) => {
-        if (!cancelled) setItems(data);
-      })
-      .catch((e) => {
-        if (!cancelled) setError(String(e));
-      })
-      .finally(() => {
-        if (!cancelled) setLoading(false);
-      });
-    return () => { cancelled = true; };
-  }, [teamId, retryTrigger]);
+  const inboxData = useAsync(() => fetchInbox(teamId), [teamId]);
+  const items = inboxData.data ?? [];
+  const loading = inboxData.loading;
+  const error = inboxData.error;
 
-  useEffect(() => {
-    if (!selectedItem) {
-      setContent(null);
-      setContentError(null);
-      return;
-    }
-    let cancelled = false;
-    setContentLoading(true);
-    setContent(null);
-    setContentError(null);
-    fetchInboxContent(teamId, selectedItem.id)
-      .then((data) => {
-        if (!cancelled) setContent(data);
-      })
-      .catch((e) => {
-        if (!cancelled) setContentError(String(e));
-      })
-      .finally(() => {
-        if (!cancelled) setContentLoading(false);
-      });
-    return () => { cancelled = true; };
-  }, [teamId, selectedItem?.id, contentRetryTrigger]);
+  const contentData = useAsync(
+    () => (selectedItem ? fetchInboxContent(teamId, selectedItem.id) : Promise.resolve(null) as Promise<string | null>),
+    [teamId, selectedItem?.id],
+    { enabled: !!selectedItem }
+  );
+  const content = contentData.data;
+  const contentLoading = contentData.loading;
+  const contentError = contentData.error;
 
   if (loading) {
-    return (
-      <div className="text-center py-4 text-muted">
-        <Spinner animation="border" size="sm" className="me-2" />
-        Loading inbox...
-      </div>
-    );
+    return <LoadingSpinner message="Loading inbox..." />;
   }
 
   if (error) {
     return (
       <div className="alert alert-danger" role="alert">
         <p className="mb-2">{error}</p>
-        <Button variant="primary" size="sm" onClick={() => setRetryTrigger((n) => n + 1)}>
+        <Button variant="primary" size="sm" onClick={() => inboxData.retry()}>
           Retry
         </Button>
       </div>
@@ -127,19 +90,14 @@ export function InboxList({ teamId }: Props) {
               )}
             </Modal.Header>
             <Modal.Body>
-              {contentLoading && (
-                <div className="text-center py-4 text-muted">
-                  <Spinner animation="border" size="sm" className="me-2" />
-                  Loading...
-                </div>
-              )}
+              {contentLoading && <LoadingSpinner message="Loading..." />}
               {contentError && !contentLoading && (
                 <div className="alert alert-danger" role="alert">
                   <p className="mb-2">{contentError}</p>
                   <Button
                     variant="primary"
                     size="sm"
-                    onClick={() => setContentRetryTrigger((n) => n + 1)}
+                    onClick={() => contentData.retry()}
                   >
                     Retry
                   </Button>

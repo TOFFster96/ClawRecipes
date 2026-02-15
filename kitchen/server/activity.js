@@ -3,7 +3,7 @@
  * Bounded ring buffer (200 events).
  */
 
-const MAX_EVENTS = 200;
+export const MAX_EVENTS = 200;
 const MAX_MESSAGE_LENGTH = 1024;
 
 /** @type {Array<{ id: string; type: string; teamId?: string; ticketId?: string; message: string; timestamp: string }>} */

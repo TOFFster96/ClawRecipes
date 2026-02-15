@@ -1,10 +1,9 @@
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import {
   Card,
   Container,
   Form,
   Modal,
-  Spinner,
   Button as BsButton,
   ListGroup,
 } from "react-bootstrap";
@@ -15,106 +14,68 @@ import {
   fetchHealth,
   type Binding,
 } from "../api";
+import { useAsync } from "../hooks/useAsync";
+import { useFormSubmit } from "../hooks/useFormSubmit";
+import { HealthGuard } from "../components/HealthGuard";
+import { PageLoadingState } from "../components/PageLoadingState";
 
 export function BindingsPage() {
-  const [health, setHealth] = useState<{ openclaw: boolean } | null>(null);
-  const [bindings, setBindings] = useState<Binding[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
   const [addModalOpen, setAddModalOpen] = useState(false);
   const [addAgentId, setAddAgentId] = useState("");
   const [addChannel, setAddChannel] = useState("");
-  const [addLoading, setAddLoading] = useState(false);
-  const [addError, setAddError] = useState<string | null>(null);
+  const addForm = useFormSubmit();
+  const [removeError, setRemoveError] = useState<string | null>(null);
 
-  const load = () => {
-    setLoading(true);
-    setError(null);
-    fetchHealth()
-      .then((h) => {
-        setHealth(h);
-        if (!h.openclaw) {
-          setLoading(false);
-          setBindings([]);
-          return;
-        }
-        return fetchBindings();
-      })
-      .then((data) => {
-        if (data) setBindings(data);
-      })
-      .catch((e) => setError(String(e)))
-      .finally(() => setLoading(false));
-  };
+  const health = useAsync(
+    () => fetchHealth(),
+    [],
+    { fallbackOnError: { ok: true, openclaw: false } }
+  );
 
-  useEffect(() => {
-    load();
-  }, []);
+  const bindingsData = useAsync<Binding[]>(
+    () =>
+      health.data?.openclaw ? fetchBindings() : Promise.resolve(null),
+    [health.data?.openclaw],
+    { enabled: !!health.data?.openclaw }
+  );
+
+  const bindings = bindingsData.data ?? [];
+  const loading = bindingsData.loading;
+  const error = removeError ?? bindingsData.error;
 
   const handleAdd = async () => {
     if (!addAgentId.trim() || !addChannel.trim()) return;
-    setAddError(null);
-    setAddLoading(true);
-    try {
+    const ok = await addForm.submit(async () => {
       await addBindingAPI(addAgentId.trim(), { channel: addChannel.trim() });
       setAddModalOpen(false);
       setAddAgentId("");
       setAddChannel("");
-      load();
-    } catch (e) {
-      setAddError(String(e));
-    } finally {
-      setAddLoading(false);
-    }
+      bindingsData.retry();
+    });
+    if (ok === null) return;
   };
 
   const handleRemove = async (b: Binding) => {
+    setRemoveError(null);
     try {
       await removeBindingAPI(b.match, b.agentId);
-      load();
+      bindingsData.retry();
     } catch (e) {
-      setError(String(e));
+      setRemoveError(String(e));
     }
   };
 
-  if (!health) {
-    return (
-      <Container fluid="lg" className="py-4">
-        <div className="text-center py-5 text-muted">
-          <Spinner animation="border" size="sm" className="me-2" />
-          Checking...
-        </div>
-      </Container>
-    );
-  }
-
-  if (!health.openclaw) {
-    return (
-      <Container fluid="lg" className="py-4">
-        <div className="py-5 text-center">
-          <div className="alert alert-info mx-auto" style={{ maxWidth: "32rem" }}>
-            <strong>Connect OpenClaw to manage bindings</strong>
-            <p className="mb-0 mt-2 text-muted small">
-              Bindings require OpenClaw to be configured.
-            </p>
-          </div>
-        </div>
-      </Container>
-    );
-  }
-
-  if (loading) {
-    return (
-      <Container fluid="lg" className="py-4">
-        <div className="text-center py-5 text-muted">
-          <Spinner animation="border" size="sm" className="me-2" />
-          Loading bindings...
-        </div>
-      </Container>
-    );
-  }
-
   return (
+    <HealthGuard
+      health={health}
+      openclawMessage="Connect OpenClaw to manage bindings"
+      openclawDetail="Bindings require OpenClaw to be configured."
+    >
+      <PageLoadingState
+        loading={loading}
+        error={undefined}
+        loadingMessage="Loading bindings..."
+      >
     <Container fluid="lg" className="py-4">
       <h2 className="h5 mb-3">Bindings</h2>
       <p className="text-muted small mb-3">
@@ -140,9 +101,9 @@ export function BindingsPage() {
             </div>
           ) : (
             <ListGroup variant="flush">
-              {bindings.map((b, i) => (
+              {bindings.map((b) => (
                 <ListGroup.Item
-                  key={i}
+                  key={`${b.agentId}-${b.match.channel}`}
                   className="d-flex justify-content-between align-items-center"
                 >
                   <span>
@@ -164,12 +125,12 @@ export function BindingsPage() {
         </Card.Body>
       </Card>
 
-      <Modal show={addModalOpen} onHide={() => !addLoading && setAddModalOpen(false)}>
+      <Modal show={addModalOpen} onHide={() => !addForm.loading && setAddModalOpen(false)}>
         <Modal.Header closeButton>
           <Modal.Title>Add binding</Modal.Title>
         </Modal.Header>
         <Modal.Body>
-          {addError && <div className="alert alert-danger" role="alert">{addError}</div>}
+          {addForm.error && <div className="alert alert-danger" role="alert">{addForm.error}</div>}
           <Form.Group className="mb-2">
             <Form.Label>Agent ID</Form.Label>
             <Form.Control
@@ -177,7 +138,7 @@ export function BindingsPage() {
               value={addAgentId}
               onChange={(e) => setAddAgentId(e.target.value)}
               placeholder="e.g. my-team-dev"
-              disabled={addLoading}
+              disabled={addForm.loading}
             />
           </Form.Group>
           <Form.Group>
@@ -187,23 +148,25 @@ export function BindingsPage() {
               value={addChannel}
               onChange={(e) => setAddChannel(e.target.value)}
               placeholder="e.g. telegram"
-              disabled={addLoading}
+              disabled={addForm.loading}
             />
           </Form.Group>
         </Modal.Body>
         <Modal.Footer>
-          <BsButton variant="secondary" onClick={() => setAddModalOpen(false)} disabled={addLoading}>
+          <BsButton variant="secondary" onClick={() => setAddModalOpen(false)} disabled={addForm.loading}>
             Cancel
           </BsButton>
           <BsButton
             variant="primary"
             onClick={handleAdd}
-            disabled={addLoading || !addAgentId.trim() || !addChannel.trim()}
+            disabled={addForm.loading || !addAgentId.trim() || !addChannel.trim()}
           >
-            {addLoading ? "Adding…" : "Add"}
+            {addForm.loading ? "Adding…" : "Add"}
           </BsButton>
         </Modal.Footer>
       </Modal>
     </Container>
+      </PageLoadingState>
+    </HealthGuard>
   );
 }

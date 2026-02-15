@@ -1,8 +1,9 @@
-import { describe, expect, test, vi } from 'vitest';
+import { describe, expect, test, vi, beforeEach } from 'vitest';
 import request from 'supertest';
+import { existsSync } from 'node:fs';
 
 vi.mock('node:fs', () => ({
-  existsSync: () => false,
+  existsSync: vi.fn(() => false),
 }));
 
 vi.mock('../server/openclaw.js', () => ({
@@ -32,5 +33,25 @@ describe('Static / SPA fallback when dist missing', () => {
     expect(res.headers['content-type']).toMatch(/html/);
     expect(res.text).toContain('not built');
     expect(res.text).toContain('npm run build');
+  });
+});
+
+describe('Static / SPA fallback when dist exists', () => {
+  beforeEach(() => {
+    vi.mocked(existsSync).mockReturnValue(true);
+  });
+
+  test('GET / returns 200 and HTML when dist exists', async () => {
+    const appWithDist = createApp();
+    const res = await request(appWithDist).get('/').expect(200);
+    expect(res.headers['content-type']).toMatch(/html/);
+    expect(res.text).toMatch(/<!DOCTYPE html|<\/html>/i);
+  });
+
+  test('GET /board returns index.html (SPA fallback)', async () => {
+    const appWithDist = createApp();
+    const res = await request(appWithDist).get('/board').expect(200);
+    expect(res.headers['content-type']).toMatch(/html/);
+    expect(res.text).toMatch(/<!DOCTYPE html|<\/html>/i);
   });
 });

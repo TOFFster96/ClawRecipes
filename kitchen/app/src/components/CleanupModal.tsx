@@ -1,6 +1,9 @@
 import { useEffect, useState } from "react";
 import { Modal, Button as BsButton, Spinner } from "react-bootstrap";
 import { fetchCleanupPlan, executeCleanup } from "../api";
+import { useAsync } from "../hooks/useAsync";
+import { LoadingSpinner } from "./LoadingSpinner";
+import { IconWarning } from "./icons/IconWarning";
 
 type Props = {
   show: boolean;
@@ -9,39 +12,33 @@ type Props = {
 };
 
 export function CleanupModal({ show, onHide, onSuccess }: Props) {
-  const [plan, setPlan] = useState<{
+  const [planOverride, setPlanOverride] = useState<{
     ok: boolean;
     dryRun: boolean;
     rootDir: string;
     candidates: Array<{ teamId: string; absPath: string }>;
     skipped: Array<{ teamId?: string; dirName: string; reason: string }>;
   } | null>(null);
-  const [planError, setPlanError] = useState<string | null>(null);
-  const [planLoading, setPlanLoading] = useState(false);
   const [executing, setExecuting] = useState(false);
   const [executeResult, setExecuteResult] = useState<{
     deleted: string[];
     deleteErrors?: Array<{ path: string; error: string }>;
   } | null>(null);
+  const [executeError, setExecuteError] = useState<string | null>(null);
   const [confirming, setConfirming] = useState(false);
 
+  const planData = useAsync(() => fetchCleanupPlan(), [], { enabled: show });
+  const plan = planData.data;
+  const planLoading = planData.loading;
+  const planError = planData.error;
+
   useEffect(() => {
-    if (!show) return;
-    setPlan(null);
-    setPlanError(null);
-    setExecuteResult(null);
-    setConfirming(false);
-    setPlanLoading(true);
-    fetchCleanupPlan()
-      .then((data) => {
-        setPlan(data);
-        setPlanError(null);
-      })
-      .catch((e) => {
-        setPlanError(String(e));
-        setPlan(null);
-      })
-      .finally(() => setPlanLoading(false));
+    if (show) {
+      setPlanOverride(null);
+      setExecuteResult(null);
+      setExecuteError(null);
+      setConfirming(false);
+    }
   }, [show]);
 
   const handleExecute = () => {
@@ -51,19 +48,18 @@ export function CleanupModal({ show, onHide, onSuccess }: Props) {
     }
     setExecuting(true);
     setExecuteResult(null);
+    setExecuteError(null);
     executeCleanup()
       .then((result) => {
         setExecuteResult({
           deleted: result.deleted ?? [],
           deleteErrors: result.deleteErrors,
         });
-        setPlan((prev) =>
-          prev ? { ...prev, candidates: [] } : null
-        );
+        setPlanOverride(plan ? { ...plan, candidates: [] } : null);
         onSuccess?.();
       })
       .catch((e) => {
-        setPlanError(String(e));
+        setExecuteError(String(e));
       })
       .finally(() => {
         setExecuting(false);
@@ -73,7 +69,8 @@ export function CleanupModal({ show, onHide, onSuccess }: Props) {
 
   const handleCancelConfirm = () => setConfirming(false);
 
-  const candidates = plan?.candidates ?? [];
+  const displayPlan = planOverride ?? plan;
+  const candidates = displayPlan?.candidates ?? [];
   const hasCandidates = candidates.length > 0;
 
   return (
@@ -87,15 +84,12 @@ export function CleanupModal({ show, onHide, onSuccess }: Props) {
           Protected teams (e.g. development-team) are never deleted.
         </p>
         {planLoading && (
-          <div className="text-center py-3 text-muted">
-            <Spinner animation="border" size="sm" className="me-2" />
-            Loading...
-          </div>
+          <LoadingSpinner message="Loading..." className="text-center py-3 text-muted" />
         )}
-        {planError && (
-          <div className="alert alert-danger" role="alert">{planError}</div>
+        {(planError || executeError) && (
+          <div className="alert alert-danger" role="alert">{executeError ?? planError}</div>
         )}
-        {plan && !planLoading && (
+        {displayPlan && !planLoading && (
           <>
             {hasCandidates ? (
               <>
@@ -111,9 +105,7 @@ export function CleanupModal({ show, onHide, onSuccess }: Props) {
                 </ul>
                 {confirming && (
                   <div className="alert alert-warning mt-3 mb-0 d-flex align-items-start gap-2" role="alert">
-                    <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor" className="flex-shrink-0 mt-1" aria-hidden>
-                      <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm1 15h-2v-2h2v2zm0-4h-2V7h2v6z" />
-                    </svg>
+                    <IconWarning width={20} height={20} className="flex-shrink-0 mt-1" />
                     <div>
                       <p className="mb-2">Delete the listed workspaces? This cannot be undone.</p>
                     <div className="d-flex gap-2">

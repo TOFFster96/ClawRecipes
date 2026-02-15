@@ -22,7 +22,7 @@
     "README.md"
   ],
   "scripts": {
-    "test": "vitest run",
+    "test": "node node_modules/vitest/vitest.mjs run",
     "test:all": "npm run test && npm run test:kitchen",
     "test:kitchen": "cd kitchen && npm run test",
     "test:smoke": "node scripts/scaffold-smoke.mjs",

@@ -1,58 +1,44 @@
 import { useEffect, useState, useRef } from "react";
 import { fetchActivity, type ActivityEvent } from "../api";
-
-const POLL_INTERVAL_MS = 5000;
+import { useAsync } from "../hooks/useAsync";
+import { formatRelativeTime } from "../utils/formatTime";
+import {
+  ACTIVITY_FETCH_LIMIT,
+  ACTIVITY_POLL_INTERVAL_MS,
+  ACTIVITY_NEW_ITEM_HIGHLIGHT_MS,
+  ACTIVITY_FEED_WIDTH_EXPANDED,
+  ACTIVITY_FEED_WIDTH_COLLAPSED,
+} from "../constants";
 
 export function ActivityFeed() {
   const [expanded, setExpanded] = useState(true);
-  const [events, setEvents] = useState<ActivityEvent[]>([]);
   const [newIds, setNewIds] = useState<Set<string>>(new Set());
   const prevIdsRef = useRef<Set<string>>(new Set());
 
+  const activityData = useAsync(
+    () => fetchActivity(ACTIVITY_FETCH_LIMIT),
+    [],
+    { refetchInterval: ACTIVITY_POLL_INTERVAL_MS, fallbackOnError: [] }
+  );
+  const events = activityData.data ?? [];
+
   useEffect(() => {
-    let cancelled = false;
-
-    const load = () => {
-      fetchActivity(50)
-        .then((data) => {
-          if (cancelled) return;
-          setEvents(data);
-
-          const currentIds = new Set(data.map((e) => e.id));
-          const prev = prevIdsRef.current;
-          const newlyAdded = data.filter((e) => !prev.has(e.id));
-          prevIdsRef.current = currentIds;
-
-          if (newlyAdded.length > 0) {
-            setNewIds(new Set(newlyAdded.map((e) => e.id)));
-            setTimeout(() => setNewIds(new Set()), 1500);
-          }
-        })
-        .catch(() => {});
-    };
-
-    load();
-    const id = setInterval(load, POLL_INTERVAL_MS);
-    return () => {
-      cancelled = true;
-      clearInterval(id);
-    };
-  }, []);
-
-  const formatTime = (ts: string) => {
-    const d = new Date(ts);
-    const now = new Date();
-    const diff = (now.getTime() - d.getTime()) / 1000;
-    if (diff < 60) return "just now";
-    if (diff < 3600) return `${Math.floor(diff / 60)}m ago`;
-    if (diff < 86400) return `${Math.floor(diff / 3600)}h ago`;
-    return d.toLocaleDateString();
-  };
+    if (events.length === 0) return;
+    const currentIds = new Set(events.map((e) => e.id));
+    const prev = prevIdsRef.current;
+    const newlyAdded = events.filter((e) => !prev.has(e.id));
+    prevIdsRef.current = currentIds;
+    if (newlyAdded.length > 0) {
+      setNewIds(new Set(newlyAdded.map((e) => e.id)));
+      const id = setTimeout(() => setNewIds(new Set()), ACTIVITY_NEW_ITEM_HIGHLIGHT_MS);
+      return () => clearTimeout(id);
+    }
+  }, [events]);
 
   return (
     <aside
       className="activity-feed activity-feed-aside d-flex flex-column flex-shrink-0"
-      style={expanded ? { width: "260px" } : { width: "44px" }}
+      style={expanded ? { width: ACTIVITY_FEED_WIDTH_EXPANDED } : { width: ACTIVITY_FEED_WIDTH_COLLAPSED }}
     >
       <button
         type="button"
@@ -76,15 +62,18 @@ export function ActivityFeed() {
       </button>
       {expanded && (
       <div className="activity-list flex-grow-1 overflow-auto">
-        {events.length === 0 && (
+        {events.length === 0 && !activityData.error && (
           <div className="p-4 text-muted text-center">No activity yet</div>
+        )}
+        {activityData.error && (
+          <div className="p-4 text-danger small text-center">{activityData.error}</div>
         )}
         {events.map((e) => (
           <div
             key={e.id}
             className={`activity-item ${newIds.has(e.id) ? "activity-item-new" : ""}`}
           >
-            <span className="activity-item-time">{formatTime(e.timestamp)}</span>
+            <span className="activity-item-time">{formatRelativeTime(e.timestamp)}</span>
             <span className="activity-item-message">{e.message}</span>
           </div>
         ))}

@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import { Dropdown } from "react-bootstrap";
 import type { Ticket } from "../api";
-import { STAGES } from "../constants";
+import { STAGES, TICKET_CARD_FLASH_DURATION_MS } from "../constants";
 
 type Props = {
   ticket: Ticket;
@@ -18,7 +18,7 @@ export function TicketCard({ ticket, onSelect, dataVersion = 0, teamId, demoMode
   useEffect(() => {
     if (dataVersion === 0) return;
     setFlash(true);
-    const id = setTimeout(() => setFlash(false), 800);
+    const id = setTimeout(() => setFlash(false), TICKET_CARD_FLASH_DURATION_MS);
     return () => clearTimeout(id);
   }, [dataVersion]);
 
