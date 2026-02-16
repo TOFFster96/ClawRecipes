@@ -10,7 +10,7 @@ cronJobs:
     schedule: "*/30 7-23 * * 1-5"
     timezone: "America/New_York"
     message: "Automated lead triage loop: triage inbox/tickets, assign work, and update notes/status.md."
-    enabledByDefault: false
+    enabledByDefault: true
   - id: execution-loop
     name: "Execution loop"
     schedule: "*/30 7-23 * * 1-5"

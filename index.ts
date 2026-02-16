@@ -1330,7 +1330,7 @@ const recipesPlugin = {
 
             const inboxMd = `# Inbox — ${teamId}\n\nReceived: ${receivedIso}\n\n## Request\n${requestText}\n\n## Proposed work\n- Ticket: ${ticketNumStr}-${baseSlug}\n- Owner: ${owner}\n\n## Links\n- Ticket: ${path.relative(teamDir, ticketPath)}\n- Assignment: ${path.relative(teamDir, assignmentPath)}\n`;
 
-            const ticketMd = `# ${ticketNumStr}-${baseSlug}\n\nCreated: ${receivedIso}\nOwner: ${owner}\nStatus: queued\nInbox: ${path.relative(teamDir, inboxPath)}\nAssignment: ${path.relative(teamDir, assignmentPath)}\n\n## Context\n${requestText}\n\n## Requirements\n- (fill in)\n\n## Acceptance criteria\n- (fill in)\n\n## Tasks\n- [ ] (fill in)\n`;
+            const ticketMd = `# ${ticketNumStr}-${baseSlug}\n\nCreated: ${receivedIso}\nOwner: ${owner}\nStatus: queued\nInbox: ${path.relative(teamDir, inboxPath)}\nAssignment: ${path.relative(teamDir, assignmentPath)}\n\n## Context\n${requestText}\n\n## Requirements\n- (fill in)\n\n## Acceptance criteria\n- (fill in)\n\n## Tasks\n- [ ] (fill in)\n\n## Comments\n- (use this section for @mentions, questions, decisions, and dated replies)\n`;
 
             const assignmentMd = `# Assignment — ${ticketNumStr}-${baseSlug}\n\nCreated: ${receivedIso}\nAssigned: ${owner}\n\n## Goal\n${title}\n\n## Ticket\n${path.relative(teamDir, ticketPath)}\n\n## Notes\n- Created by: openclaw recipes dispatch\n`;
 
@@ -1353,6 +1353,25 @@ const recipesPlugin = {
               await writeFileSafely(inboxPath, inboxMd, "createOnly");
               await writeFileSafely(ticketPath, ticketMd, "createOnly");
               await writeFileSafely(assignmentPath, assignmentMd, "createOnly");
+
+              // Best-effort nudge: enqueue a system event for the team lead session.
+              // This does not spawn the lead; it ensures that when the lead session runs next,
+              // it sees the dispatch immediately.
+              try {
+                const leadAgentId = `${teamId}-lead`;
+                api.runtime.system.enqueueSystemEvent(
+                  [
+                    `Dispatch created new intake for team: ${teamId}`,
+                    `- Inbox: ${path.relative(teamDir, inboxPath)}`,
+                    `- Backlog: ${path.relative(teamDir, ticketPath)}`,
+                    `- Assignment: ${path.relative(teamDir, assignmentPath)}`,
+                    `Action: please triage/normalize the ticket (fill Requirements/AC/tasks) and move it through the workflow.`,
+                  ].join("\n"),
+                  { sessionKey: `agent:${leadAgentId}:main` },
+                );
+              } catch {
+                // ignore: dispatch should still succeed even if system event enqueue fails
+              }
             };
 
             if (options.yes) {
