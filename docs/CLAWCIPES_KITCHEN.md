@@ -11,7 +11,7 @@ ClawRecipes Kitchen is our UI for managing ClawRecipes workflows.
 - Goals system (file-based source of truth)
 
 ## Status
-ClawRecipes Kitchen is under active development. Team dashboards are available.
+ClawRecipes Kitchen is under active development. Team dashboards and recipe search/filter are available.
 
 ## How to run
 

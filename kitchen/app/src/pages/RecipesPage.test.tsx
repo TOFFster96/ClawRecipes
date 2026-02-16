@@ -421,6 +421,58 @@ describe('RecipesPage', () => {
     expect(await screen.findByText(/Network error/)).toBeInTheDocument();
   });
 
+  test('search filters recipes by name', async () => {
+    vi.mocked(api.fetchRecipes).mockResolvedValue([
+      { id: 'dev-team', name: 'Development Team', source: 'builtin', kind: 'team' },
+      { id: 'agent-pm', name: 'Project Manager', source: 'builtin', kind: 'agent' },
+      { id: 'agent-dev', name: 'Developer Agent', source: 'workspace', kind: 'agent' },
+    ]);
+    vi.mocked(api.fetchRecipeStatus).mockResolvedValue([
+      { id: 'dev-team', requiredSkills: [], missingSkills: [], installCommands: [] },
+      { id: 'agent-pm', requiredSkills: [], missingSkills: [], installCommands: [] },
+      { id: 'agent-dev', requiredSkills: [], missingSkills: [], installCommands: [] },
+    ]);
+    const user = userEvent.setup();
+    renderRecipesPage();
+    await screen.findByText('Development Team');
+    await user.type(screen.getByLabelText('Search recipes'), 'Manager');
+    expect(screen.getByText('Project Manager')).toBeInTheDocument();
+    expect(screen.queryByText('Development Team')).not.toBeInTheDocument();
+    expect(screen.queryByText('Developer Agent')).not.toBeInTheDocument();
+  });
+
+  test('kind filter filters recipes', async () => {
+    vi.mocked(api.fetchRecipes).mockResolvedValue([
+      { id: 'dev-team', name: 'Dev Team', source: 'builtin', kind: 'team' },
+      { id: 'agent-pm', name: 'PM Agent', source: 'builtin', kind: 'agent' },
+    ]);
+    vi.mocked(api.fetchRecipeStatus).mockResolvedValue([
+      { id: 'dev-team', requiredSkills: [], missingSkills: [], installCommands: [] },
+      { id: 'agent-pm', requiredSkills: [], missingSkills: [], installCommands: [] },
+    ]);
+    const user = userEvent.setup();
+    renderRecipesPage();
+    await screen.findByText('Dev Team');
+    await user.selectOptions(screen.getByLabelText('Filter by recipe kind'), 'agent');
+    expect(screen.getByText('PM Agent')).toBeInTheDocument();
+    expect(screen.queryByText('Dev Team')).not.toBeInTheDocument();
+  });
+
+  test('shows No matching recipes when search has no results', async () => {
+    vi.mocked(api.fetchRecipes).mockResolvedValue([
+      { id: 'dev-team', name: 'Development Team', source: 'builtin', kind: 'team' },
+    ]);
+    vi.mocked(api.fetchRecipeStatus).mockResolvedValue([
+      { id: 'dev-team', requiredSkills: [], missingSkills: [], installCommands: [] },
+    ]);
+    const user = userEvent.setup();
+    renderRecipesPage();
+    await screen.findByText('Development Team');
+    await user.type(screen.getByLabelText('Search recipes'), 'nonexistentrecipe');
+    expect(screen.getByText('No matching recipes')).toBeInTheDocument();
+    expect(screen.getByText(/Try a different search or filter/)).toBeInTheDocument();
+  });
+
   test('scaffold agent from recipe detail modal', async () => {
     vi.mocked(api.fetchRecipes).mockResolvedValue([
       { id: 'agent-pm', name: 'PM Agent', source: 'builtin', kind: 'agent' },

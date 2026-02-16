@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { Card, Container } from "react-bootstrap";
+import { Container } from "react-bootstrap";
 import {
   fetchRecipes,
   fetchRecipe,
@@ -13,10 +13,16 @@ import {
   type RecipeStatus,
 } from "../api";
 import { useAsync } from "../hooks/useAsync";
+import {
+  filterRecipes,
+  segmentRecipesByKind,
+  type RecipeKindFilter,
+} from "../lib/recipeSearch";
 import { HealthGuard } from "../components/HealthGuard";
 import { PageLoadingState } from "../components/PageLoadingState";
 import { RecipeCard } from "../components/RecipeCard";
 import { RecipeDetailModal } from "../components/RecipeDetailModal";
+import { RecipeSearchBar } from "../components/RecipeSearchBar";
 import { ScaffoldTeamModal } from "../components/ScaffoldTeamModal";
 import { ScaffoldAgentModal } from "../components/ScaffoldAgentModal";
 
@@ -32,6 +38,10 @@ export function RecipesPage() {
   const [scaffoldAgentModalRecipe, setScaffoldAgentModalRecipe] = useState<Recipe | null>(null);
   const [installingRecipeId, setInstallingRecipeId] = useState<string | null>(null);
   const [installError, setInstallError] = useState<string | null>(null);
+  const [search, setSearch] = useState<{ query: string; kindFilter: RecipeKindFilter }>({
+    query: "",
+    kindFilter: "all",
+  });
 
   const health = useAsync(
     () => fetchHealth(),
@@ -117,13 +127,11 @@ export function RecipesPage() {
     setInstallError(null);
   };
 
-  const recipes = recipesData.data?.recipes ?? [];
+  const allRecipes = recipesData.data?.recipes ?? [];
   const recipeStatusMap = recipesData.data?.statusMap ?? {};
-  const teamRecipes = recipes.filter((r) => r.kind === "team" || !r.kind);
-  const agentRecipes = recipes.filter((r) => r.kind === "agent");
-  const otherRecipes = recipes.filter(
-    (r) => r.kind !== "team" && r.kind !== "agent" && r.kind
-  );
+  const recipes = filterRecipes(allRecipes, search.query, search.kindFilter);
+  const { team: teamRecipes, agent: agentRecipes, other: otherRecipes } =
+    segmentRecipesByKind(recipes);
 
   return (
     <HealthGuard
@@ -139,6 +147,17 @@ export function RecipesPage() {
       >
     <Container fluid="lg" className="py-4">
       <h2 className="h5 mb-3">Recipes</h2>
+      {allRecipes.length > 0 && (
+        <RecipeSearchBar
+          query={search.query}
+          onQueryChange={(q) => setSearch((s) => ({ ...s, query: q }))}
+          kindFilter={search.kindFilter}
+          onKindFilterChange={(k) => setSearch((s) => ({ ...s, kindFilter: k }))}
+          resultCount={recipes.length}
+          totalCount={allRecipes.length}
+          disabled={recipesData.loading}
+        />
+      )}
       {recipes.length === 0 ? (
         <div className="card">
           <div className="card-body text-center py-5">
@@ -150,9 +169,15 @@ export function RecipesPage() {
             >
               <path d="M9 2h6v2H9V2zm4 14h2v2h-2v-2zm-4 0h2v2H9v-2zm0-4h2v2H9v-2zm4 0h2v2h-2v-2zM5 4v16h14V4H5zm2 2h10v12H7V6z" />
             </svg>
-            <h5 className="card-title mb-2">No recipes found</h5>
+            <h5 className="card-title mb-2">
+              {allRecipes.length === 0
+                ? "No recipes found"
+                : "No matching recipes"}
+            </h5>
             <p className="text-muted mb-0 small">
-              Connect OpenClaw and scaffold a team to browse recipes.
+              {allRecipes.length === 0
+                ? "Connect OpenClaw and scaffold a team to browse recipes."
+                : "Try a different search or filter."}
             </p>
           </div>
         </div>
