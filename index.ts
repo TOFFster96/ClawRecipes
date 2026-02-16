@@ -782,7 +782,9 @@ const recipesPlugin = {
           console.error("[recipes] ensured agents.list includes main as first/default");
         }
       } catch (e) {
-        console.error(`[recipes] warning: failed to ensure main agent in agents.list: ${(e as Error).message}`);
+        // Keep install/scaffold warning-free; this is non-critical and can fail on locked-down configs.
+        // (If needed, diagnose via debug logs instead of emitting warnings.)
+        console.error(`[recipes] note: failed to ensure main agent in agents.list: ${(e as Error).message}`);
       }
     })();
 
