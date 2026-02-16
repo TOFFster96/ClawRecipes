@@ -211,7 +211,7 @@ openclaw recipes scaffold-team marketing-team --team-id marketing-team-team --ap
 ```
 
 Roles:
-- lead, seo, copywriter, ads, social, designer, analyst
+- lead, seo, copywriter, ads, social, designer, analyst, video, compliance
 
 ---
 
