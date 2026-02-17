@@ -268,6 +268,27 @@ templates:
     - Calendar/cadence checklists → work/playbook/cadence.md
     - Tooling notes → shared-context/tooling/
 
+files:
+  - path: SOUL.md
+    template: soul
+    mode: createOnly
+  - path: AGENTS.md
+    template: agents
+    mode: createOnly
+  - path: TOOLS.md
+    template: tools
+    mode: createOnly
+  - path: STATUS.md
+    template: status
+    mode: createOnly
+  - path: NOTES.md
+    template: notes
+    mode: createOnly
+
+tools:
+  profile: "coding"
+  allow: ["group:fs", "group:web"]
+  deny: []
 ---
 
 # Stock Trader Team Recipe
@@ -287,3 +308,4 @@ Bundled team recipe.
   - deny: exec
 - Safety note: most bundled teams default to denying `exec` unless a role explicitly needs it.
 
+      

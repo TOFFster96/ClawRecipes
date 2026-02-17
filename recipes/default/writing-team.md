@@ -293,7 +293,6 @@ files:
 tools:
   profile: "coding"
   allow: ["group:fs", "group:web"]
-  deny: ["exec"]
 ---
 # Writing Team Recipe
 
@@ -311,4 +310,7 @@ A lightweight writing pipeline that pairs briefs/outlines/drafts/edits with a fi
   - allow groups: group:fs, group:runtime, group:web
   - deny: exec
 - Safety note: most bundled teams default to denying `exec` unless a role explicitly needs it.
+
+
+itly needs it.
 

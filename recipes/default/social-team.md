@@ -772,7 +772,6 @@ files:
 tools:
   profile: "coding"
   allow: ["group:fs", "group:web"]
-  deny: ["exec"]
 ---
 # Social Team Recipe
 
@@ -790,4 +789,6 @@ Scaffolds a shared team workspace and platform-specialist agents. This team exec
   - allow groups: group:fs, group:runtime, group:web
   - deny: exec
 - Safety note: most bundled teams default to denying `exec` unless a role explicitly needs it.
+
+citly needs it.
 
