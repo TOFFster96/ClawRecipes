@@ -612,6 +612,7 @@ const recipesPlugin = {
           .description("Complete a ticket (move to done, set Status: done, and add Completed: timestamp). No confirmation prompt.")
           .requiredOption("--team-id <teamId>", "Team id")
           .requiredOption("--ticket <ticket>", "Ticket id or number")
+          .option("--yes", "No-op for backward compatibility (complete has no confirmation)")
           .action(async (options: { teamId?: string; ticket?: string }) => {
             if (!options.teamId || !options.ticket) throw new Error("--team-id and --ticket are required");
             try {

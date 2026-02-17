@@ -67,5 +67,57 @@ describe("cov-10: reconcileRecipeCronJobs, promptYesNo, applyAgentSnippets", () 
       expect(res.updatedAgents).toEqual(["test-agent"]);
       expect(cfgObj.agents.list.some((a: any) => a.id === "test-agent")).toBe(true);
     });
+    test("preserves existing tools.deny when recipe omits tools", async () => {
+      const cfgObj = {
+        agents: {
+          list: [
+            {
+              id: "dev-agent",
+              workspace: "/ws/dev",
+              tools: { deny: ["exec"] },
+            },
+          ],
+        },
+      };
+      const api = {
+        config: { agents: { defaults: { workspace: "/ws" } } },
+        runtime: {
+          config: {
+            loadConfig: () => ({ cfg: cfgObj }),
+            writeConfigFile: async (c: unknown) => {
+              Object.assign(cfgObj, c);
+            },
+          },
+        },
+      } as any;
+      await __internal.applyAgentSnippetsToOpenClawConfig(api, [
+        { id: "dev-agent", workspace: "/ws/dev", identity: { name: "Dev" } },
+      ]);
+      const agent = cfgObj.agents.list.find((a: { id?: string }) => a.id === "dev-agent");
+      expect(agent?.tools).toEqual({ deny: ["exec"] });
+    });
+    test("does not invent deny rules when recipe omits tools and agent has none", async () => {
+      const cfgObj = {
+        agents: {
+          list: [{ id: "fresh-agent", workspace: "/ws/fresh" }],
+        },
+      };
+      const api = {
+        config: { agents: { defaults: { workspace: "/ws" } } },
+        runtime: {
+          config: {
+            loadConfig: () => ({ cfg: cfgObj }),
+            writeConfigFile: async (c: unknown) => {
+              Object.assign(cfgObj, c);
+            },
+          },
+        },
+      } as any;
+      await __internal.applyAgentSnippetsToOpenClawConfig(api, [
+        { id: "fresh-agent", workspace: "/ws/fresh", identity: { name: "Fresh" } },
+      ]);
+      const agent = cfgObj.agents.list.find((a: { id?: string }) => a.id === "fresh-agent");
+      expect(agent?.tools).toBeUndefined();
+    });
   });
 });

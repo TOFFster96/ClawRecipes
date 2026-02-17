@@ -53,7 +53,7 @@ export async function scaffoldAgentFromRecipe(
     id: opts.agentId,
     workspace: opts.workspaceRootDir,
     identity: { name: opts.agentName ?? recipe.name ?? opts.agentId },
-    tools: recipe.tools ?? {},
+    tools: recipe.tools,
   };
 
   return {
