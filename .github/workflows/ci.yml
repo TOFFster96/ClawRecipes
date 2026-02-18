@@ -35,6 +35,9 @@ jobs:
       - name: Run plugin tests with coverage
         run: npm run test:coverage
 
+      - name: Build Kitchen app
+        run: cd kitchen && npm run build
+
       - name: Run Kitchen tests
         run: npm run test:kitchen
 
