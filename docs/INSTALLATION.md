@@ -7,7 +7,7 @@ This repo is an **OpenClaw plugin** (not a standalone CLI). OpenClaw loads it an
 ## Prerequisites
 - OpenClaw installed and working (`openclaw --version`)
 - Node.js available (OpenClaw uses Node to load plugins)
-- (For `recipes install`) you’ll need access to ClawHub (the command runs `npx clawhub@latest ...`).
+- (For `recipes install`) you'll need access to ClawHub (the command runs `npx clawhub@latest ...`).
 
 ## Install
 ### Option A (preferred): install from npm
@@ -69,37 +69,13 @@ openclaw plugins uninstall recipes
 openclaw gateway restart
 ```
 
-(If `plugins uninstall` is not available in your build, remove the path from your OpenClaw config’s plugin load paths and restart.)
+(If `plugins uninstall` is not available in your build, remove the path from your OpenClaw config's plugin load paths and restart.)
 
 ## Troubleshooting
 ### Plugin loads but commands are missing
 - Restart: `openclaw gateway restart`
 - Check: `openclaw plugins list`
 - Verify `openclaw.plugin.json` exists at repo root and has `id: "recipes"`.
-
-### "Unknown command" (e.g. cleanup-workspaces)
-This usually means the OpenClaw process is using an older or different plugin build:
-
-1. **If installed from npm**  
-   The published version may not include newer commands yet. Use a local install instead:
-   ```bash
-   openclaw plugins install --link /path/to/ClawRecipes
-   openclaw gateway restart
-   ```
-
-2. **If using `--link`**  
-   Confirm the path points at the ClawRecipes repo with the latest changes, then restart:
-   ```bash
-   openclaw gateway restart
-   ```
-
-3. **Version mismatch**  
-   Kitchen (and any process spawning `openclaw`) must use the same OpenClaw binary and config as the one where the plugin is loaded. Check:
-   ```bash
-   which openclaw
-   openclaw recipes list
-   openclaw recipes cleanup-workspaces --json
-   ```
 
 ### `recipes install` fails
 - Run `npx clawhub@latest --help` to confirm the CLI can run.

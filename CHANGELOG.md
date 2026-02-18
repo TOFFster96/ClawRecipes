@@ -4,17 +4,6 @@ All notable changes to this project will be documented in this file.
 
 This project follows (roughly) [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and [Semantic Versioning](https://semver.org/).
 
-## [Unreleased]
-### Added
-- **ClawRecipes Kitchen security hardening (Phases 2–3):**
-  - Request/body limits (JSON 256kb, dispatch 64kb).
-  - Rate limiting in production (100 req/min, `/api/health` exempt).
-  - Content-Security-Policy header in production.
-  - Recipe ID, match object, and scaffold-agent name validation.
-  - `X-Confirm-Destructive: true` required for cleanup/team removal in production.
-  - Error path sanitization and activity message truncation.
-- **ClawRecipes Kitchen:** rehype-sanitize for markdown XSS protection; pre-commit hooks run Kitchen tests when `kitchen/**` changes.
-
 ## [0.2.3] - 2026-02-10
 ### Added
 - **Recipe-defined cron jobs** (`cronJobs:` in recipe frontmatter) with scaffold-time installation.
