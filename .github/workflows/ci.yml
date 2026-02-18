@@ -24,6 +24,14 @@ jobs:
       - name: Install kitchen dependencies
         run: cd kitchen && npm ci
 
+      - name: Audit root dependencies
+        run: npm audit --audit-level=high
+        continue-on-error: true
+
+      - name: Audit kitchen dependencies
+        run: cd kitchen && npm audit --audit-level=high
+        continue-on-error: true
+
       - name: Run plugin tests with coverage
         run: npm run test:coverage
 
@@ -32,11 +40,3 @@ jobs:
 
       - name: Run smell-check
         run: npm run smell-check
-
-      - name: Audit root dependencies
-        run: npm audit --audit-level=high
-        continue-on-error: true
-
-      - name: Audit kitchen dependencies
-        run: cd kitchen && npm audit --audit-level=high
-        continue-on-error: true

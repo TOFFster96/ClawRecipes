@@ -54,17 +54,6 @@ openclaw recipes dispatch \
   --owner lead
 ```
 
-### ClawRecipes Kitchen (UI)
-
-ClawRecipes Kitchen is an optional UI for team dashboards, activity feed, and recipes. Launch it:
-
-```bash
-openclaw recipes kitchen   # prints the command
-npx -p @jiggai/recipes clawrecipes-kitchen    # then run this
-```
-
-See `docs/CLAWCIPES_KITCHEN.md` for full details.
-
 ## Commands (high level)
 - `openclaw recipes list|show|status`
 - `openclaw recipes scaffold` (agent → `workspace-<agentId>` + writes workspace recipe `~/.openclaw/workspace/recipes/<agentId>.md` by default)
@@ -73,7 +62,6 @@ See `docs/CLAWCIPES_KITCHEN.md` for full details.
 - `openclaw recipes bind|unbind|bindings` (multi-agent routing)
 - `openclaw recipes dispatch ...` (request → inbox + ticket + assignment)
 - `openclaw recipes tickets|move-ticket|assign|take|handoff|complete` (file-first ticket workflow)
-- `openclaw recipes kitchen` (prints command to launch Kitchen UI)
 - `openclaw recipes cleanup-workspaces` (safe cleanup of temporary test/scaffold workspaces)
 
 For full details, see `docs/COMMANDS.md`.
